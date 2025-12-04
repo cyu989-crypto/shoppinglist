@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BlueBuy - AI 購物清單</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,20 +15,26 @@
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #FFF9F5;
-            overflow: hidden;
+            overflow: hidden; /* 防止整體捲動 */
+            -webkit-tap-highlight-color: transparent; /* 移除手機點擊高亮 */
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        
+        /* 自定義滾動條優化 */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        input[type="checkbox"] { accent-color: #3b82f6; }
+        
+        /* Checkbox 優化 */
+        input[type="checkbox"] { accent-color: #3b82f6; width: 1.2rem; height: 1.2rem; }
     </style>
 </head>
-<body class="text-slate-600 selection:bg-blue-100 h-screen w-full flex">
+<body class="text-slate-600 selection:bg-blue-100 h-screen w-full flex flex-col md:flex-row">
 
-    <div id="app" class="flex w-full h-full relative">
+    <div id="app" class="flex w-full h-full relative overflow-hidden">
         <div id="loading-screen" class="flex h-screen w-full items-center justify-center flex-col gap-6 absolute inset-0 bg-[#FFF9F5] z-50">
             <div class="w-20 h-20 bg-white rounded-full shadow-xl flex items-center justify-center animate-bounce text-blue-300">
                 <i data-lucide="shopping-bag" width="40" height="40"></i>
@@ -47,7 +53,7 @@
 
         // --- Config ---
         const firebaseConfig = {
-            apiKey: "YOUR_FIREBASE_API_KEY", // 請填入 Firebase Config，若無則使用 Mock Data
+            apiKey: "YOUR_FIREBASE_API_KEY", 
             authDomain: "YOUR_PROJECT.firebaseapp.com",
             projectId: "YOUR_PROJECT_ID",
             storageBucket: "YOUR_PROJECT.appspot.com",
@@ -74,14 +80,13 @@
             isLoaded: false,
             isSaving: false,
             selectedListId: null,
-            isSidebarOpen: true,
+            isSidebarOpen: true, // 手機版預設可能要關閉，但在 render 時會動態判斷
             sidebarTab: 'lists',
             viewMode: 'list',
             newItemName: '',
-            // Logic State
             editingItem: null,
             pendingItemToAdd: null,
-            moveTarget: null // { type: 'move-list'|'move-item', id: string, itemData: obj }
+            moveTarget: null
         };
         let state = { ...initialState };
 
@@ -98,7 +103,8 @@
         const generateId = () => Math.random().toString(36).substr(2, 9);
         const refreshIcons = () => { if (window.lucide) window.lucide.createIcons(); };
         const iconHTML = (name, size=16, classes="") => `<i data-lucide="${name}" width="${size}" height="${size}" class="${classes}"></i>`;
-        
+        const hasApiKey = () => !!localStorage.getItem('gemini_api_key');
+
         const getAllergens = (text) => {
             if (!text) return [];
             const features = [];
@@ -109,23 +115,41 @@
             return features;
         };
 
-        // --- API Key Modal ---
+        // --- UI Logic: API Key Banner & Modal ---
+        const renderApiKeyBanner = () => {
+             // 如果沒有 Key，回傳 HTML 字串
+             if (!hasApiKey()) {
+                 return `
+                 <div id="api-key-banner" class="w-full bg-rose-500 text-white px-4 py-3 flex items-center justify-center gap-2 cursor-pointer shadow-md z-[60] shrink-0 animate-pulse" onclick="document.querySelector('[data-action=open-key-settings]').click()">
+                     ${iconHTML('alert-triangle', 18)}
+                     <span class="text-sm font-bold">尚未設定 API Key！點此立即設定以啟用 AI 功能</span>
+                 </div>`;
+             }
+             return '';
+        };
+
         const showApiKeyModal = () => {
             const overlay = document.getElementById('modal-overlay');
             const currentKey = localStorage.getItem('gemini_api_key') || '';
             
             overlay.innerHTML = `
-            <div class="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 animate-fade-in">
-                <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-6 border-4 border-white/50">
+            <div class="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-white rounded-[2rem] shadow-2xl w-[90%] max-w-md p-6 border-4 border-white/50">
                     <div class="flex flex-col items-center text-center gap-3 mb-5">
                         <div class="w-14 h-14 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center">${iconHTML('key', 28)}</div>
-                        <h3 class="text-base font-bold text-slate-700">設定 Gemini API Key</h3>
+                        <h3 class="text-lg font-bold text-slate-700">設定 Gemini API Key</h3>
                     </div>
-                    <p class="text-slate-500 mb-4 text-center text-sm">請輸入 API Key 以啟用 AI 功能。<br><span class="text-xs text-slate-400">(儲存於本地瀏覽器，不會上傳伺服器)</span></p>
-                    <input type="password" id="input-api-key" value="${currentKey}" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 focus:ring-2 focus:ring-indigo-400 text-slate-700 outline-none font-bold text-center" placeholder="AIzaSy...">
-                    <div class="flex justify-center gap-3">
-                        <button id="modal-close-key" class="flex-1 py-3 text-slate-500 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-sm">取消</button>
-                        <button id="modal-save-key" class="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold shadow-md transition-colors">儲存</button>
+                    <p class="text-slate-500 mb-4 text-center text-sm leading-relaxed">
+                        請輸入 API Key 以啟用 AI 功能。<br>
+                        <span class="text-xs text-slate-400">(Key 僅儲存於您的瀏覽器，不會上傳伺服器)</span>
+                    </p>
+                    <input type="password" id="input-api-key" value="${currentKey}" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 focus:ring-2 focus:ring-indigo-400 text-slate-700 outline-none font-bold text-center text-lg" placeholder="貼上 API Key...">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button id="modal-close-key" class="w-full py-3.5 text-slate-500 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-base">取消</button>
+                        <button id="modal-save-key" class="w-full py-3.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold shadow-md transition-colors text-base">儲存設定</button>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-xs text-indigo-400 font-bold hover:underline flex items-center justify-center gap-1">${iconHTML('external-link', 12)} 取得免費 API Key</a>
                     </div>
                 </div>
             </div>`;
@@ -136,9 +160,10 @@
                 const val = document.getElementById('input-api-key').value.trim();
                 if (val) {
                     localStorage.setItem('gemini_api_key', val);
-                    alert("API Key 已儲存！");
+                    alert("✅ API Key 已儲存！");
                     overlay.innerHTML = '';
-                } else alert("請輸入有效的 API Key");
+                    render(); // 重繪以移除 Banner
+                } else alert("❌ 請輸入有效的 API Key");
             };
         };
 
@@ -161,7 +186,7 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
                 });
                 if (!response.ok) {
-                    if (response.status === 400 || response.status === 403) { alert("API Key 無效或已過期"); showApiKeyModal(); }
+                    if (response.status === 400 || response.status === 403) { alert("⚠️ API Key 無效或已過期"); showApiKeyModal(); }
                     throw new Error(`API Error: ${response.status}`);
                 }
                 const data = await response.json();
@@ -181,16 +206,15 @@
             if (node.type === 'folder') {
                 return `
                 <div class="my-2 select-none">
-                    <div class="group flex items-center justify-between py-3 pr-3 cursor-pointer text-slate-600 transition-all mr-2 rounded-r-full hover:bg-blue-50" style="padding-left: ${paddingLeft}px" data-action="toggle-folder" data-id="${node.id}">
-                        <div class="flex items-center gap-2 font-bold tracking-wide overflow-hidden pointer-events-none">
-                            ${node.isOpen ? iconHTML('chevron-down', 16, 'text-blue-400') : iconHTML('chevron-right', 16, 'text-slate-400')}
-                            ${iconHTML('folder', 18, 'text-blue-400 fill-blue-50')}
-                            <span class="truncate text-sm">${node.title}</span>
+                    <div class="group flex items-center justify-between py-3 pr-3 cursor-pointer text-slate-600 transition-all mr-2 rounded-r-full hover:bg-blue-50 active:bg-blue-50" style="padding-left: ${paddingLeft}px" data-action="toggle-folder" data-id="${node.id}">
+                        <div class="flex items-center gap-2 font-bold tracking-wide overflow-hidden pointer-events-none text-base">
+                            ${node.isOpen ? iconHTML('chevron-down', 18, 'text-blue-400') : iconHTML('chevron-right', 18, 'text-slate-400')}
+                            ${iconHTML('folder', 20, 'text-blue-400 fill-blue-50')}
+                            <span class="truncate">${node.title}</span>
                         </div>
-                        <div class="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button data-action="rename-node" data-id="${node.id}" data-title="${node.title}" class="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-full shadow-sm border border-slate-100">${iconHTML('pencil', 14)}</button>
-                            <button data-action="add-list-to-folder" data-id="${node.id}" class="p-1.5 text-blue-400 hover:text-blue-600 bg-white rounded-full shadow-sm border border-slate-100">${iconHTML('plus', 14)}</button>
-                            <button data-action="delete-node" data-id="${node.id}" class="p-1.5 text-rose-400 hover:text-rose-600 bg-white rounded-full shadow-sm border border-slate-100">${iconHTML('trash-2', 14)}</button>
+                        <div class="flex gap-2">
+                             <button data-action="add-list-to-folder" data-id="${node.id}" class="p-2 text-blue-400 bg-white rounded-full shadow-sm border border-slate-100">${iconHTML('plus', 16)}</button>
+                             <button data-action="delete-node" data-id="${node.id}" class="p-2 text-rose-400 bg-white rounded-full shadow-sm border border-slate-100">${iconHTML('trash-2', 16)}</button>
                         </div>
                     </div>
                     ${node.isOpen && node.children ? `<div class="relative"><div class="absolute left-[33px] top-0 bottom-4 w-0.5 border-l-2 border-dotted border-blue-200 ml-4"></div>${node.children.map(c => renderSidebarNode(c, level + 1)).join('')}</div>` : ''}
@@ -198,17 +222,17 @@
             } else {
                 return `
                 <div class="my-2 select-none">
-                    <div class="${isSelected ? 'bg-blue-100 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-100'} group flex items-center justify-between py-3 pr-3 cursor-pointer transition-all mr-2 rounded-r-full" style="padding-left: ${paddingLeft}px" data-action="select-list" data-id="${node.id}">
-                        <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
-                            <div class="w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-slate-300'}"></div>
-                            <span class="truncate tracking-wide text-sm">${node.title}</span>
+                    <div class="${isSelected ? 'bg-blue-100 text-blue-600 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-100'} group flex items-center justify-between py-3.5 pr-3 cursor-pointer transition-all mr-2 rounded-r-full" style="padding-left: ${paddingLeft}px" data-action="select-list" data-id="${node.id}">
+                        <div class="flex items-center gap-3 overflow-hidden pointer-events-none">
+                            <div class="w-2.5 h-2.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-slate-300'}"></div>
+                            <span class="truncate tracking-wide text-base">${node.title}</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="${isSelected ? 'bg-white text-blue-500' : 'bg-slate-200 text-slate-500'} text-[10px] px-2 py-0.5 rounded-full font-bold">${node.items?.length || 0}</span>
-                            <div class="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button data-action="move-list" data-id="${node.id}" class="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-full shadow-sm" title="移動">${iconHTML('folder-input', 14)}</button>
-                                <button data-action="rename-node" data-id="${node.id}" data-title="${node.title}" class="p-1.5 text-slate-400 hover:text-blue-500 bg-white rounded-full shadow-sm">${iconHTML('pencil', 14)}</button>
-                                <button data-action="delete-node" data-id="${node.id}" class="p-1.5 text-slate-400 hover:text-rose-500 bg-white rounded-full shadow-sm">${iconHTML('trash-2', 14)}</button>
+                            <span class="${isSelected ? 'bg-white text-blue-500' : 'bg-slate-200 text-slate-500'} text-xs px-2.5 py-1 rounded-full font-bold">${node.items?.length || 0}</span>
+                            <div class="hidden md:flex gap-1">
+                                <button data-action="move-list" data-id="${node.id}" class="p-1.5 bg-white rounded-full shadow-sm">${iconHTML('folder-input', 14)}</button>
+                                <button data-action="rename-node" data-id="${node.id}" data-title="${node.title}" class="p-1.5 bg-white rounded-full shadow-sm">${iconHTML('pencil', 14)}</button>
+                                <button data-action="delete-node" data-id="${node.id}" class="p-1.5 bg-white rounded-full shadow-sm">${iconHTML('trash-2', 14)}</button>
                             </div>
                         </div>
                     </div>
@@ -219,37 +243,57 @@
         const renderItemCard = (item) => {
             const isGrid = state.viewMode === 'grid';
             const tags = getAllergens(`${item.name} ${item.ingredients || ''}`);
-            const tagsHTML = tags.map(tag => `<div class="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ${tag.bg} ${tag.color}"><span>${tag.emoji}</span>${tag.label}</div>`).join('');
-            const locHTML = (item.locations || []).map(l => `<span class="bg-emerald-50 text-emerald-600 text-[10px] px-2 py-1 rounded border border-emerald-100 flex items-center gap-1">${iconHTML('map-pin', 10)} ${l}</span>`).join('');
-            const imgHTML = item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-300">${iconHTML('image', 20)}</div>`;
+            const tagsHTML = tags.map(tag => `<div class="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg ${tag.bg} ${tag.color}"><span>${tag.emoji}</span>${tag.label}</div>`).join('');
+            const locHTML = (item.locations || []).map(l => `<span class="bg-emerald-50 text-emerald-600 text-[11px] px-2 py-1 rounded border border-emerald-100 flex items-center gap-1">${iconHTML('map-pin', 12)} ${l}</span>`).join('');
+            
+            // 圖片處理：確保寬高100%填滿容器
+            const imgHTML = item.image 
+                ? `<img src="${item.image}" class="w-full h-full object-cover transition-transform hover:scale-105" loading="lazy">` 
+                : `<div class="w-full h-full flex items-center justify-center text-slate-300 bg-slate-50">${iconHTML('image', 24)}</div>`;
+
+            // 操作按鈕區塊 (手機版顯示在底部)
+            const actionsHTML = `
+                <div class="flex items-center gap-2 mt-3 md:mt-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity md:absolute md:right-3 md:bottom-3 md:bg-white/90 md:backdrop-blur md:p-1 md:rounded-full md:shadow-sm">
+                    <button data-action="move-item" data-id="${item.id}" class="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors bg-slate-50 md:bg-transparent" title="移動">${iconHTML('arrow-right-circle', 20)}</button>
+                    <button data-action="edit-item" data-id="${item.id}" class="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors bg-slate-50 md:bg-transparent">${iconHTML('edit-3', 20)}</button>
+                    <button data-action="delete-item" data-id="${item.id}" class="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-50 rounded-full transition-colors bg-slate-50 md:bg-transparent">${iconHTML('trash-2', 20)}</button>
+                </div>
+            `;
 
             if (isGrid) {
                 return `
-                <div class="group relative bg-white rounded-[24px] border border-slate-100 p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col h-full ${item.checked ? 'opacity-60 grayscale' : ''}" data-id="${item.id}">
-                    <div class="relative w-full aspect-video bg-slate-50 rounded-2xl overflow-hidden mb-3 border-2 border-white shadow-sm cursor-pointer" data-action="edit-item" data-id="${item.id}">${imgHTML}</div>
-                    <button class="absolute top-6 right-6 w-8 h-8 rounded-full border-[3px] flex items-center justify-center bg-white shadow-md ${item.checked ? 'border-blue-300 text-blue-400' : 'border-slate-200 text-slate-200'}" data-action="toggle-check" data-id="${item.id}">${iconHTML('check', 16, 'stroke-[4px]')}</button>
+                <div class="group relative bg-white rounded-[24px] border border-slate-100 p-4 shadow-sm hover:shadow-lg transition-all flex flex-col h-full ${item.checked ? 'opacity-60 grayscale' : ''}" data-id="${item.id}">
+                    <div class="relative w-full aspect-video bg-slate-100 rounded-2xl overflow-hidden mb-3 border border-slate-100 cursor-pointer" data-action="edit-item" data-id="${item.id}">${imgHTML}</div>
+                    <button class="absolute top-6 right-6 w-9 h-9 rounded-full border-[3px] flex items-center justify-center bg-white shadow-md z-10 ${item.checked ? 'border-blue-300 text-blue-400' : 'border-slate-200 text-slate-200'}" data-action="toggle-check" data-id="${item.id}">${iconHTML('check', 18, 'stroke-[4px]')}</button>
                     <div class="flex-1 cursor-pointer" data-action="edit-item" data-id="${item.id}">
-                        <div class="flex justify-between items-start gap-2 mb-2"><h3 class="font-bold text-base leading-snug break-words tracking-wide ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3>${item.price > 0 ? `<div class="font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-xl text-xs whitespace-nowrap">${item.currency==='JPY'?'¥':'$'}${item.price}</div>`:''}</div>
+                        <div class="flex justify-between items-start gap-2 mb-2"><h3 class="font-bold text-lg leading-snug break-words tracking-wide ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3>${item.price > 0 ? `<div class="font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-xl text-xs whitespace-nowrap">${item.currency==='JPY'?'¥':'$'}${item.price}</div>`:''}</div>
                         <div class="flex flex-wrap gap-1.5 mb-2">${tagsHTML}</div>
                         ${item.note ? `<p class="text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded-lg line-clamp-2">${item.note}</p>` : ''}
                     </div>
                 </div>`;
             }
+            
+            // 列表模式 (手機優化：圖片加大，按鈕下移)
             return `
-            <div class="group relative bg-white rounded-[24px] border border-slate-100 p-5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all ${item.checked ? 'opacity-60 grayscale bg-slate-50' : ''}" data-id="${item.id}">
-                <div class="flex gap-4 items-start relative">
-                    <button class="flex-shrink-0 w-8 h-8 rounded-full border-[3px] flex items-center justify-center transition-all mt-1 ${item.checked ? 'bg-blue-300 border-blue-300 text-white' : 'border-slate-200 text-transparent hover:border-blue-300'}" data-action="toggle-check" data-id="${item.id}">${iconHTML('check', 16, 'stroke-[4px]')}</button>
-                    <div class="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white shadow-sm mt-0.5 cursor-pointer" data-action="edit-item" data-id="${item.id}">${imgHTML}</div>
-                    <div class="flex-1 min-w-0 cursor-pointer py-0.5" data-action="edit-item" data-id="${item.id}">
-                        <div class="flex justify-between items-start gap-2"><h3 class="font-bold text-base leading-snug break-words tracking-wide ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3>${item.price > 0 ? `<div class="font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-2xl text-xs whitespace-nowrap">${item.currency==='JPY'?'¥':'$'}${item.price}</div>`:''}</div>
-                        <div class="flex flex-wrap gap-1.5 mt-1">${tagsHTML}</div>
-                        ${item.note ? `<div class="mt-1 text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-xl font-medium inline-block">${item.note}</div>` : ''}
-                        <div class="flex flex-wrap gap-2 mt-2">${locHTML}</div>
+            <div class="group relative bg-white rounded-[24px] border border-slate-100 p-4 md:p-5 shadow-sm hover:shadow-lg transition-all ${item.checked ? 'opacity-60 grayscale bg-slate-50' : ''}" data-id="${item.id}">
+                <div class="flex flex-col md:flex-row gap-4 items-start relative">
+                    <div class="flex w-full md:w-auto gap-4 items-start">
+                         <button class="flex-shrink-0 w-8 h-8 md:w-8 md:h-8 rounded-full border-[3px] flex items-center justify-center transition-all mt-1 ${item.checked ? 'bg-blue-300 border-blue-300 text-white' : 'border-slate-200 text-transparent hover:border-blue-300'}" data-action="toggle-check" data-id="${item.id}">${iconHTML('check', 16, 'stroke-[4px]')}</button>
+                         <div class="w-20 h-20 md:w-16 md:h-16 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 cursor-pointer" data-action="edit-item" data-id="${item.id}">${imgHTML}</div>
+                         
+                         <div class="flex-1 min-w-0 md:hidden cursor-pointer" data-action="edit-item" data-id="${item.id}">
+                            <div class="flex justify-between items-start gap-2"><h3 class="font-bold text-lg leading-snug break-words ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3></div>
+                            ${item.price > 0 ? `<div class="font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg text-xs inline-block mt-1">${item.currency==='JPY'?'¥':'$'}${item.price}</div>`:''}
+                         </div>
                     </div>
-                    <div class="flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 bottom-0 md:static md:flex-row md:self-center">
-                        <button data-action="move-item" data-id="${item.id}" class="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors" title="移動">${iconHTML('arrow-right-circle', 18)}</button>
-                        <button data-action="edit-item" data-id="${item.id}" class="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">${iconHTML('edit-3', 18)}</button>
-                        <button data-action="delete-item" data-id="${item.id}" class="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-50 rounded-full transition-colors">${iconHTML('trash-2', 18)}</button>
+
+                    <div class="flex-1 min-w-0 cursor-pointer py-0.5 w-full" data-action="edit-item" data-id="${item.id}">
+                        <div class="hidden md:flex justify-between items-start gap-2"><h3 class="font-bold text-lg leading-snug break-words ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3>${item.price > 0 ? `<div class="font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-2xl text-xs whitespace-nowrap">${item.currency==='JPY'?'¥':'$'}${item.price}</div>`:''}</div>
+                        <div class="flex flex-wrap gap-1.5 mt-2">${tagsHTML}</div>
+                        ${item.note ? `<div class="mt-2 text-sm text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl font-medium inline-block leading-relaxed w-full md:w-auto">${item.note}</div>` : ''}
+                        <div class="flex flex-wrap gap-2 mt-2">${locHTML}</div>
+                        
+                        ${actionsHTML}
                     </div>
                 </div>
             </div>`;
@@ -269,106 +313,111 @@
             const activeList = findNode(state.structure, state.selectedListId);
 
             const sidebarHTML = `
-            <aside class="absolute md:relative z-30 h-full bg-white w-72 flex flex-col transition-transform duration-300 shadow-[4px_0_40px_-10px_rgba(219,234,254,0.6)] ${state.isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-72'}">
-                <div class="p-8 pb-4 flex items-center gap-3">
-                    <div class="w-12 h-12 bg-blue-100 rounded-[20px] -rotate-6 flex items-center justify-center text-blue-500 shadow-inner">${iconHTML('shopping-bag', 24)}</div>
-                    <h1 class="text-xl font-black text-slate-700 tracking-wider">BlueBuy</h1>
+            <aside class="absolute md:relative z-40 h-full bg-white w-[85%] max-w-[300px] md:w-72 flex flex-col transition-transform duration-300 shadow-[4px_0_40px_-10px_rgba(219,234,254,0.6)] ${state.isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}">
+                <div class="p-6 md:p-8 pb-4 flex items-center gap-3 bg-white z-10">
+                    <div class="w-12 h-12 bg-blue-100 rounded-[20px] -rotate-6 flex items-center justify-center text-blue-500 shadow-inner shrink-0">${iconHTML('shopping-bag', 24)}</div>
+                    <h1 class="text-xl md:text-2xl font-black text-slate-700 tracking-wider">BlueBuy</h1>
+                    <button class="md:hidden ml-auto p-2 text-slate-400" data-action="close-sidebar">${iconHTML('x', 24)}</button>
                 </div>
-                <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar pb-24">
                     ${state.sidebarTab === 'lists' ? `
                         <div class="flex justify-between items-center mb-2 px-2">
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">我的清單</span>
-                            <button data-action="create-folder" class="p-1.5 text-blue-400 hover:bg-blue-50 rounded-full">${iconHTML('plus', 14)}</button>
+                            <button data-action="create-folder" class="p-2 text-blue-400 hover:bg-blue-50 rounded-full">${iconHTML('plus', 18)}</button>
                         </div>
                         ${state.structure.map(node => renderSidebarNode(node)).join('')}
                     ` : `
                         <div class="space-y-4 px-2 animate-fade-in">
                            <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">AI 智慧工具</div>
-                           <button data-action="open-key-settings" class="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-2xl text-xs font-bold transition-colors mb-4 border border-slate-200">${iconHTML('settings', 14)} 設定 API Key</button>
+                           <button data-action="open-key-settings" class="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-2xl text-sm font-bold transition-colors mb-4 border border-slate-200">${iconHTML('settings', 16)} 設定 API Key</button>
                            <button data-action="open-tool-recommend" class="w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-400 to-blue-500 text-white py-6 rounded-3xl shadow-lg hover:scale-[1.02] transition-transform">
                                <div class="bg-white/20 p-3 rounded-full">${iconHTML('lightbulb', 24, 'text-yellow-200')}</div>
-                               <span class="font-bold text-sm">購物顧問</span>
+                               <span class="font-bold text-base">購物顧問</span>
                            </button>
                            <div class="grid grid-cols-2 gap-3">
-                              <button data-action="open-tool-restaurant" class="flex flex-col items-center justify-center gap-2 bg-orange-50 text-orange-500 py-4 rounded-3xl border-2 border-orange-100">${iconHTML('utensils', 20)} <span class="text-xs font-bold">餐廳探查</span></button>
-                              <button data-action="open-tool-social" class="flex flex-col items-center justify-center gap-2 bg-pink-50 text-pink-500 py-4 rounded-3xl border-2 border-pink-100">${iconHTML('message-circle', 20)} <span class="text-xs font-bold">社群分析</span></button>
+                              <button data-action="open-tool-restaurant" class="flex flex-col items-center justify-center gap-2 bg-orange-50 text-orange-500 py-5 rounded-3xl border-2 border-orange-100">${iconHTML('utensils', 22)} <span class="text-sm font-bold">餐廳探查</span></button>
+                              <button data-action="open-tool-social" class="flex flex-col items-center justify-center gap-2 bg-pink-50 text-pink-500 py-5 rounded-3xl border-2 border-pink-100">${iconHTML('message-circle', 22)} <span class="text-sm font-bold">社群分析</span></button>
                            </div>
-                           <button data-action="open-tool-import" class="w-full flex items-center justify-center gap-2 bg-white border-2 border-purple-100 text-purple-400 py-4 rounded-3xl text-sm font-bold shadow-sm">${iconHTML('sparkles', 18)} 智慧匯入</button>
+                           <button data-action="open-tool-import" class="w-full flex items-center justify-center gap-2 bg-white border-2 border-purple-100 text-purple-400 py-5 rounded-3xl text-sm font-bold shadow-sm">${iconHTML('sparkles', 20)} 智慧匯入</button>
                         </div>
                     `}
                 </div>
                 <div class="p-4 border-t border-slate-100 bg-white">
                     <div class="flex bg-slate-100 p-1 rounded-2xl">
-                        <button data-action="switch-tab-lists" class="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'lists' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${iconHTML('menu', 16)} 清單</button>
-                        <button data-action="switch-tab-tools" class="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'tools' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${iconHTML('grid-2x2', 16)} 工具</button>
+                        <button data-action="switch-tab-lists" class="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'lists' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${iconHTML('menu', 18)} 清單</button>
+                        <button data-action="switch-tab-tools" class="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'tools' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${iconHTML('grid-2x2', 18)} 工具</button>
                     </div>
                 </div>
             </aside>`;
 
             let contentHTML = '';
             if (!activeList) {
-                contentHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-300 gap-8 opacity-60"><div class="w-48 h-48 bg-white rounded-[3rem] flex items-center justify-center shadow-[0_20px_50px_-10px_rgba(203,213,225,0.5)]">${iconHTML('shopping-bag', 80, 'text-blue-100')}</div><p class="text-xl tracking-widest font-bold">請選擇清單開始購物 🛒</p></div>`;
+                contentHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-300 gap-6 opacity-60"><div class="w-40 h-40 bg-white rounded-[3rem] flex items-center justify-center shadow-[0_20px_50px_-10px_rgba(203,213,225,0.5)]">${iconHTML('shopping-bag', 64, 'text-blue-100')}</div><p class="text-lg tracking-widest font-bold">請選擇清單開始購物 🛒</p></div>`;
             } else {
                 const ungroupedItems = activeList.items.filter(i => !i.groupId || !activeList.groups?.find(g => g.id === i.groupId));
                 contentHTML = `
-                <div class="max-w-4xl mx-auto space-y-10 pb-20">
-                    <div class="relative group">
-                         <div class="absolute inset-y-0 left-7 flex items-center pointer-events-none">${iconHTML('plus', 26, 'text-blue-300')}</div>
-                         <input type="text" id="main-input" value="${state.newItemName}" placeholder="想要買什麼呢..." class="w-full pl-20 pr-28 py-7 bg-white rounded-[2.5rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-xl placeholder:text-slate-300 text-slate-600 font-bold" onkeydown="if(event.key === 'Enter') document.querySelector('[data-action=add-main-item]').click()">
-                         <button data-action="add-main-item" class="absolute right-3 top-3 bottom-3 px-8 bg-blue-400 hover:bg-blue-500 text-white rounded-[2rem] font-bold shadow-lg shadow-blue-200 transition-transform active:scale-95">加入</button>
+                <div class="max-w-4xl mx-auto space-y-6 md:space-y-10 pb-32 md:pb-20">
+                    <div class="relative group sticky top-2 z-20">
+                         <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none">${iconHTML('plus', 24, 'text-blue-300')}</div>
+                         <input type="text" id="main-input" value="${state.newItemName}" placeholder="想要買什麼呢..." class="w-full pl-14 pr-24 py-5 md:pl-20 md:py-7 bg-white/95 backdrop-blur-sm rounded-[2rem] shadow-[0_10px_30px_-10px_rgba(147,197,253,0.3)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg md:text-xl placeholder:text-slate-300 text-slate-700 font-bold border border-white" onkeydown="if(event.key === 'Enter') document.querySelector('[data-action=add-main-item]').click()">
+                         <button data-action="add-main-item" class="absolute right-2 top-2 bottom-2 px-6 bg-blue-400 hover:bg-blue-500 text-white rounded-[1.5rem] font-bold shadow-md shadow-blue-200 transition-transform active:scale-95 text-base">加入</button>
                     </div>
-                    <div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-5'}">${ungroupedItems.map(item => renderItemCard(item)).join('')}</div>
+                    <div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-4'}">${ungroupedItems.map(item => renderItemCard(item)).join('')}</div>
                     ${(activeList.groups || []).map(group => {
                         const gItems = activeList.items.filter(i => i.groupId === group.id);
                         return `<div class="transform transition-all">
-                            <div class="flex items-center gap-4 mb-5 cursor-pointer select-none pl-4 group/header" data-action="toggle-group" data-id="${group.id}">
-                                <div class="p-2.5 rounded-full transition-all shadow-sm ${group.isOpen ? 'bg-blue-100 text-blue-500' : 'bg-white text-slate-300 -rotate-90'}">${iconHTML('chevron-down', 18)}</div>
-                                <h3 class="text-lg font-bold text-slate-600 flex items-center gap-3">${group.title} <span class="text-xs bg-white text-slate-400 px-3 py-1 rounded-full">${gItems.length}</span></h3>
+                            <div class="flex items-center gap-4 mb-4 cursor-pointer select-none pl-2 group/header active:scale-[0.98] transition-transform" data-action="toggle-group" data-id="${group.id}">
+                                <div class="p-2 rounded-full transition-all shadow-sm ${group.isOpen ? 'bg-blue-100 text-blue-500' : 'bg-white text-slate-300 -rotate-90'}">${iconHTML('chevron-down', 20)}</div>
+                                <h3 class="text-lg font-bold text-slate-600 flex items-center gap-3">${group.title} <span class="text-xs bg-white text-slate-400 px-3 py-1 rounded-full border border-slate-100">${gItems.length}</span></h3>
                                 <div class="flex-1 border-b-2 border-dotted border-blue-100 ml-2"></div>
-                                <button data-action="delete-group" data-id="${group.id}" class="p-3 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-full transition-colors opacity-0 group-hover/header:opacity-100">${iconHTML('trash-2', 18)}</button>
+                                <button data-action="delete-group" data-id="${group.id}" class="p-2 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-full transition-colors md:opacity-0 md:group-hover/header:opacity-100">${iconHTML('trash-2', 18)}</button>
                             </div>
-                            ${group.isOpen ? `<div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-5'}">${gItems.map(item => renderItemCard(item)).join('')}</div>` : ''}
+                            ${group.isOpen ? `<div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-4'}">${gItems.map(item => renderItemCard(item)).join('')}</div>` : ''}
                         </div>`;
                     }).join('')}
+                    <div class="h-24"></div>
                 </div>`;
             }
 
             app.innerHTML = `
-                ${state.isSidebarOpen ? '<div class="fixed inset-0 bg-slate-400/20 z-20 md:hidden backdrop-blur-sm" data-action="close-sidebar"></div>' : ''}
+                ${state.isSidebarOpen ? '<div class="fixed inset-0 bg-slate-500/30 z-30 md:hidden backdrop-blur-sm transition-opacity" data-action="close-sidebar"></div>' : ''}
                 ${sidebarHTML}
-                <main class="flex-1 flex flex-col h-full relative w-full overflow-hidden">
-                    <header class="h-24 flex items-center px-8 justify-between sticky top-0 z-10 bg-[#FFF9F5]/90 backdrop-blur-md">
-                        <div class="flex items-center gap-5 flex-1 min-w-0">
-                            <button data-action="toggle-sidebar" class="md:hidden p-3 -ml-2 text-slate-400 hover:bg-white rounded-2xl">${iconHTML('list', 24)}</button>
-                            <h2 class="text-2xl font-black text-slate-700 truncate">${activeList ? activeList.title : '選擇清單'}</h2>
+                <main class="flex-1 flex flex-col h-full relative w-full overflow-hidden bg-[#FFF9F5]">
+                    ${renderApiKeyBanner()}
+                    <header class="h-auto py-4 md:h-24 flex items-center px-4 md:px-8 justify-between sticky top-0 z-10 bg-[#FFF9F5]/90 backdrop-blur-md transition-all">
+                        <div class="flex items-center gap-4 flex-1 min-w-0">
+                            <button data-action="toggle-sidebar" class="md:hidden p-2.5 bg-white text-slate-400 hover:text-blue-500 rounded-2xl shadow-sm active:scale-95 transition-transform">${iconHTML('menu', 24)}</button>
+                            <h2 class="text-2xl font-black text-slate-700 truncate tracking-tight">${activeList ? activeList.title : 'BlueBuy'}</h2>
                         </div>
-                        <div class="flex items-center gap-3">
-                            <div class="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full transition-colors ${state.isSaving ? 'text-blue-400 bg-blue-50' : 'text-slate-300'}">${state.isSaving ? `${iconHTML('loader-2', 12, 'animate-spin')} 儲存中` : `${iconHTML('cloud', 12)} 已同步`}</div>
-                            <button data-action="toggle-view" class="p-3 rounded-2xl hover:bg-white text-slate-500 transition-colors shadow-sm border border-transparent hover:border-slate-100">${state.viewMode === 'list' ? iconHTML('layout-grid', 20) : iconHTML('align-justify', 20)}</button>
-                            ${activeList ? `<button data-action="create-group" class="ml-2 flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-blue-500 bg-white hover:bg-blue-50 px-5 py-2.5 rounded-[1.2rem] shadow-sm border border-slate-100">${iconHTML('layers', 16)} <span class="hidden sm:inline">分區</span></button>` : ''}
+                        <div class="flex items-center gap-2 md:gap-3">
+                            <div class="hidden md:flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full transition-colors ${state.isSaving ? 'text-blue-400 bg-blue-50' : 'text-slate-300'}">${state.isSaving ? `${iconHTML('loader-2', 12, 'animate-spin')} 儲存中` : `${iconHTML('cloud', 12)} 已同步`}</div>
+                            <button data-action="toggle-view" class="p-2.5 rounded-2xl bg-white text-slate-500 shadow-sm border border-slate-50 active:scale-95 transition-transform">${state.viewMode === 'list' ? iconHTML('layout-grid', 22) : iconHTML('align-justify', 22)}</button>
+                            ${activeList ? `<button data-action="create-group" class="ml-1 flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-blue-500 bg-white hover:bg-blue-50 px-4 py-2.5 rounded-[1.2rem] shadow-sm border border-slate-50 active:scale-95 transition-transform">${iconHTML('layers', 18)} <span class="hidden sm:inline">分區</span></button>` : ''}
                         </div>
                     </header>
-                    <div class="flex-1 overflow-y-auto px-8 scroll-smooth custom-scrollbar">${contentHTML}</div>
+                    <div class="flex-1 overflow-y-auto px-4 md:px-8 scroll-smooth custom-scrollbar relative">
+                        ${contentHTML}
+                    </div>
                 </main>
             `;
             refreshIcons();
         };
 
-        // --- Modals Logic ---
+        // --- Modals Logic (Updated Responsive Widths) ---
         const showDialog = (type, title, message, onConfirm) => {
             const overlay = document.getElementById('dialog-overlay');
             overlay.innerHTML = `
-            <div class="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4 animate-fade-in">
-                <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-6 border-4 border-white/50">
+            <div class="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in">
+                <div class="bg-white rounded-[2rem] shadow-2xl w-[90%] max-w-sm p-6 border-4 border-white/50">
                     <div class="flex flex-col items-center text-center gap-3 mb-5">
                         <div class="w-14 h-14 ${type === 'confirm' ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-blue-500'} rounded-full flex items-center justify-center">${iconHTML(type === 'confirm' ? 'alert-triangle' : 'edit-3', 28)}</div>
-                        <h3 class="text-base font-bold text-slate-700">${title}</h3>
+                        <h3 class="text-lg font-bold text-slate-700">${title}</h3>
                     </div>
-                    <p class="text-slate-600 mb-6 text-center font-medium text-sm leading-relaxed">${message}</p>
-                    ${type === 'prompt' ? `<input type="text" id="dialog-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 focus:ring-2 focus:ring-blue-400 text-slate-700 text-center outline-none font-bold" placeholder="輸入..." autofocus>` : ''}
-                    <div class="flex justify-center gap-3">
-                        <button id="dialog-cancel" class="flex-1 py-3 text-slate-500 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-sm">取消</button>
-                        <button id="dialog-confirm" class="flex-1 py-3 text-white rounded-2xl font-bold shadow-md ${type === 'confirm' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-blue-500 hover:bg-blue-600'}">確認</button>
+                    <p class="text-slate-600 mb-6 text-center font-medium text-base leading-relaxed">${message}</p>
+                    ${type === 'prompt' ? `<input type="text" id="dialog-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 focus:ring-2 focus:ring-blue-400 text-slate-700 text-center text-lg outline-none font-bold" placeholder="輸入..." autofocus>` : ''}
+                    <div class="flex gap-3">
+                        <button id="dialog-cancel" class="flex-1 py-3.5 text-slate-500 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-base">取消</button>
+                        <button id="dialog-confirm" class="flex-1 py-3.5 text-white rounded-2xl font-bold shadow-md ${type === 'confirm' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-blue-500 hover:bg-blue-600'} text-base">確認</button>
                     </div>
                 </div>
             </div>`;
@@ -378,7 +427,6 @@
             document.getElementById('dialog-confirm').onclick = () => { const val = document.getElementById('dialog-input')?.value; onConfirm(val); close(); };
         };
 
-        // Move Modal (Handles both Moving and Adding new items from Tools)
         const showMoveTargetModal = (mode = 'move-item') => {
              const overlay = document.getElementById('modal-overlay');
              const renderTargets = (nodes, depth=0) => {
@@ -386,14 +434,14 @@
                      const pl = depth * 12;
                      if(mode === 'move-list' && n.type === 'folder') {
                         const isCurrent = state.moveTarget?.currentParentId === n.id;
-                        return `<div class="mb-2"><button class="w-full text-left p-3 rounded-2xl flex items-center gap-3 border border-transparent ${isCurrent ? 'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'}" style="margin-left:${pl}px" onclick="${isCurrent?'':'window.confirmMove(\''+n.id+'\')'}"><div class="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center text-blue-400">${iconHTML('folder',16)}</div><span class="font-bold text-slate-600">${n.title}</span></button>${n.children?renderTargets(n.children, depth+1):''}</div>`;
+                        return `<div class="mb-2"><button class="w-full text-left p-4 rounded-2xl flex items-center gap-3 border border-transparent ${isCurrent ? 'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'} text-base" style="margin-left:${pl}px" onclick="${isCurrent?'':'window.confirmMove(\''+n.id+'\')'}"><div class="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center text-blue-400">${iconHTML('folder',18)}</div><span class="font-bold text-slate-600">${n.title}</span></button>${n.children?renderTargets(n.children, depth+1):''}</div>`;
                      }
                      if((mode === 'move-item' || mode === 'add-tool') && n.type === 'list') {
-                        const isCurrent = state.moveTarget?.currentParentId === n.id; // For move logic
-                        return `<button class="w-full text-left p-3 rounded-2xl flex items-center gap-3 border border-transparent mb-2 ${isCurrent ? 'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'}" style="margin-left:${pl}px" onclick="${isCurrent?'':'window.confirmMove(\''+n.id+'\')'}"><div class="w-8 h-8 bg-white rounded-full flex items-center justify-center text-blue-400 border border-slate-100">${iconHTML('list',16)}</div><span class="font-bold text-slate-600">${n.title}</span></button>`;
+                        const isCurrent = state.moveTarget?.currentParentId === n.id;
+                        return `<button class="w-full text-left p-4 rounded-2xl flex items-center gap-3 border border-transparent mb-2 ${isCurrent ? 'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'} text-base" style="margin-left:${pl}px" onclick="${isCurrent?'':'window.confirmMove(\''+n.id+'\')'}"><div class="w-9 h-9 bg-white rounded-full flex items-center justify-center text-blue-400 border border-slate-100">${iconHTML('list',18)}</div><span class="font-bold text-slate-600">${n.title}</span></button>`;
                      }
                      if((mode === 'move-item' || mode === 'add-tool') && n.type === 'folder') {
-                        return `<div class="mb-2"><div class="px-3 py-1 text-xs font-bold text-slate-400 uppercase flex items-center gap-1" style="margin-left:${pl}px">${iconHTML('folder',12)} ${n.title}</div>${n.children?renderTargets(n.children, depth+1):''}</div>`;
+                        return `<div class="mb-2"><div class="px-4 py-2 text-xs font-bold text-slate-400 uppercase flex items-center gap-1" style="margin-left:${pl}px">${iconHTML('folder',14)} ${n.title}</div>${n.children?renderTargets(n.children, depth+1):''}</div>`;
                      }
                      return '';
                  }).join('');
@@ -401,25 +449,20 @@
 
              overlay.innerHTML = `
              <div class="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4 animate-fade-in">
-                <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh] border-4 border-white/50">
+                <div class="bg-white rounded-[2.5rem] shadow-2xl w-[95%] max-w-sm flex flex-col max-h-[80vh] border-4 border-white/50">
                     <div class="p-5 border-b border-slate-100 bg-white/90 rounded-t-[2.2rem]"><h3 class="text-lg font-bold text-slate-700 text-center">${mode === 'move-list' ? '移動清單到...' : '選擇目標清單'}</h3></div>
                     <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50">
-                        ${mode === 'move-list' ? `<button class="w-full text-left p-3 rounded-2xl flex items-center gap-3 border border-transparent mb-2 ${state.moveTarget?.currentParentId==='root'?'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'}" onclick="window.confirmMove('root')"><div class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">${iconHTML('layers',16)}</div><span class="font-bold text-slate-600">最上層 (根目錄)</span></button>` : ''}
+                        ${mode === 'move-list' ? `<button class="w-full text-left p-4 rounded-2xl flex items-center gap-3 border border-transparent mb-2 ${state.moveTarget?.currentParentId==='root'?'opacity-50 bg-slate-50':'hover:bg-blue-50 cursor-pointer'} text-base" onclick="window.confirmMove('root')"><div class="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">${iconHTML('layers',18)}</div><span class="font-bold text-slate-600">最上層 (根目錄)</span></button>` : ''}
                         ${renderTargets(state.structure)}
                     </div>
-                    <div class="p-4 border-t border-slate-100 bg-white rounded-b-[2.2rem]"><button id="move-cancel" class="w-full py-3 text-slate-400 hover:bg-slate-50 rounded-2xl font-bold">取消</button></div>
+                    <div class="p-4 border-t border-slate-100 bg-white rounded-b-[2.2rem]"><button id="move-cancel" class="w-full py-3.5 text-slate-400 hover:bg-slate-50 rounded-2xl font-bold text-base">取消</button></div>
                 </div>
              </div>`;
              refreshIcons();
              document.getElementById('move-cancel').onclick = () => { state.moveTarget = null; state.pendingItemToAdd = null; overlay.innerHTML = ''; };
-             
-             // Global handler for the inline onclicks generated above
              window.confirmMove = (targetId) => {
-                 if(state.pendingItemToAdd) {
-                     confirmToolAddItem(targetId);
-                 } else {
-                     executeMove(targetId);
-                 }
+                 if(state.pendingItemToAdd) confirmToolAddItem(targetId);
+                 else executeMove(targetId);
                  overlay.innerHTML = '';
              };
         };
@@ -428,132 +471,64 @@
              const overlay = document.getElementById('modal-overlay');
              overlay.innerHTML = `
              <div class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                <div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border-4 border-white overflow-hidden">
-                    <div class="p-5 bg-white border-b border-pink-50 flex items-center justify-between">
-                         <h3 class="font-bold flex gap-2 text-slate-700">${iconHTML('message-circle', 24, 'text-pink-400')} 社群分析</h3>
-                         <button id="social-close" class="p-2 rounded-full hover:bg-slate-100">${iconHTML('x', 20)}</button>
-                    </div>
-                    <div id="social-content" class="flex-1 p-6 overflow-y-auto bg-[#FDFBF7]">
-                        <div class="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
-                             <div class="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center">${iconHTML('heart', 32, 'text-pink-300')}</div>
-                             <p>貼上 IG/Threads 連結或文字<br>分析留言風向與重點！</p>
-                        </div>
-                    </div>
-                    <div class="p-5 bg-white border-t border-pink-50 flex gap-2">
-                        <input id="social-input" type="text" class="flex-1 p-4 bg-slate-50 rounded-full outline-none" placeholder="貼上內容...">
-                        <button id="social-go" class="w-14 h-14 bg-pink-400 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-500 transition-transform active:scale-95">${iconHTML('wand-2', 24)}</button>
-                    </div>
+                <div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[85vh] flex flex-col border-4 border-white overflow-hidden">
+                    <div class="p-5 bg-white border-b border-pink-50 flex items-center justify-between"><h3 class="font-bold flex gap-2 text-slate-700 text-lg">${iconHTML('message-circle', 24, 'text-pink-400')} 社群分析</h3><button id="social-close" class="p-2 rounded-full hover:bg-slate-100">${iconHTML('x', 24)}</button></div>
+                    <div id="social-content" class="flex-1 p-6 overflow-y-auto bg-[#FDFBF7]"><div class="h-full flex flex-col items-center justify-center text-slate-400 gap-4"><div class="w-20 h-20 bg-pink-50 rounded-full flex items-center justify-center">${iconHTML('heart', 36, 'text-pink-300')}</div><p class="text-center">貼上 IG/Threads 連結或文字<br>分析留言風向與重點！</p></div></div>
+                    <div class="p-5 bg-white border-t border-pink-50 flex gap-2"><input id="social-input" type="text" class="flex-1 p-4 bg-slate-50 rounded-full outline-none text-base" placeholder="貼上內容..."><button id="social-go" class="w-14 h-14 bg-pink-400 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-pink-500 transition-transform active:scale-95 shrink-0">${iconHTML('wand-2', 24)}</button></div>
                 </div>
              </div>`;
              refreshIcons();
              document.getElementById('social-close').onclick = () => overlay.innerHTML = '';
              document.getElementById('social-go').onclick = async function() {
-                 const query = document.getElementById('social-input').value;
-                 if(!query) return;
-                 const btn = this;
-                 const content = document.getElementById('social-content');
+                 const query = document.getElementById('social-input').value; if(!query) return;
+                 const btn = this; const content = document.getElementById('social-content');
                  btn.innerHTML = iconHTML('loader-2', 24, 'animate-spin');
-                 
                  try {
                      const prompt = `Analyze: "${query}". JSON: { "summary": "str", "sentiment": "Positive/Neutral/Negative", "key_comments": [{"user":"A","content":"txt","likes":10}], "engagement": "str" }`;
                      const res = await callGemini(prompt);
                      if(res) {
-                         content.innerHTML = `
-                         <div class="space-y-5 animate-fade-in">
-                            <div class="bg-white p-5 rounded-3xl shadow-sm border border-pink-100">
-                                <div class="flex justify-between items-center mb-3"><h4 class="font-bold text-slate-700">📝 摘要</h4><span class="text-xs px-2 py-1 rounded-full font-bold bg-slate-100">${res.sentiment}</span></div>
-                                <p class="text-sm text-slate-600 mb-3">${res.summary}</p>
-                                <div class="flex items-center gap-2 text-xs font-bold text-pink-500 bg-pink-50 px-3 py-1.5 rounded-xl w-fit">${iconHTML('thumbs-up',12)} ${res.engagement}</div>
-                            </div>
-                            <div class="space-y-3"><h4 class="text-sm font-bold text-slate-500 ml-1">💬 模擬留言</h4>${res.key_comments.map(c=>`<div class="bg-white p-4 rounded-2xl border border-slate-100 flex gap-3"><div class="w-8 h-8 bg-slate-100 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-slate-400">${c.user[0]}</div><div class="flex-1"><div class="flex justify-between"><span class="text-xs font-bold text-slate-700">${c.user}</span><span class="text-[10px] text-slate-400 flex items-center gap-1">${iconHTML('heart',8)} ${c.likes}</span></div><p class="text-xs text-slate-500 mt-1">${c.content}</p></div></div>`).join('')}</div>
-                         </div>`;
+                         content.innerHTML = `<div class="space-y-5 animate-fade-in"><div class="bg-white p-5 rounded-3xl shadow-sm border border-pink-100"><div class="flex justify-between items-center mb-3"><h4 class="font-bold text-slate-700">📝 摘要</h4><span class="text-xs px-2 py-1 rounded-full font-bold bg-slate-100">${res.sentiment}</span></div><p class="text-base text-slate-600 mb-3">${res.summary}</p><div class="flex items-center gap-2 text-xs font-bold text-pink-500 bg-pink-50 px-3 py-1.5 rounded-xl w-fit">${iconHTML('thumbs-up',12)} ${res.engagement}</div></div><div class="space-y-3"><h4 class="text-sm font-bold text-slate-500 ml-1">💬 模擬留言</h4>${res.key_comments.map(c=>`<div class="bg-white p-4 rounded-2xl border border-slate-100 flex gap-3"><div class="w-9 h-9 bg-slate-100 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-slate-400">${c.user[0]}</div><div class="flex-1"><div class="flex justify-between"><span class="text-sm font-bold text-slate-700">${c.user}</span><span class="text-[10px] text-slate-400 flex items-center gap-1">${iconHTML('heart',10)} ${c.likes}</span></div><p class="text-sm text-slate-500 mt-1">${c.content}</p></div></div>`).join('')}</div></div>`;
                      }
                  } catch(e) { alert("分析失敗"); }
-                 btn.innerHTML = iconHTML('wand-2', 24);
-                 refreshIcons();
+                 btn.innerHTML = iconHTML('wand-2', 24); refreshIcons();
              };
         };
         
-        // Show Editor & AI Import logic from previous version (abbreviated for brevity but included in full impl)
         const showEditor = (item) => {
-             /* ... Same as before, logic to edit item ... */
              const overlay = document.getElementById('modal-overlay');
              const groups = state.structure.flatMap(n => n.children ? [n, ...n.children] : [n]).find(n => n.id === state.selectedListId)?.groups || [];
-             
              overlay.innerHTML = `
-            <div class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
+            <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
                 <div class="w-full max-w-md bg-[#FFF9F5] h-full shadow-2xl flex flex-col border-l-4 border-white">
-                    <div class="p-5 border-b border-blue-50 flex items-center justify-between bg-white z-10">
-                        <h3 class="text-base font-bold text-slate-700 flex items-center gap-2"><span class="bg-blue-100 p-2 rounded-xl text-blue-500">${iconHTML('edit-3', 20)}</span> 編輯好物</h3>
-                        <div class="flex items-center gap-2"><button id="editor-save" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-full font-bold shadow-md text-sm flex items-center gap-1">${iconHTML('check', 16)} 儲存</button><button id="editor-close" class="p-2 hover:bg-slate-100 rounded-full text-slate-400">${iconHTML('x', 24)}</button></div>
-                    </div>
+                    <div class="p-5 border-b border-blue-50 flex items-center justify-between bg-white z-10"><h3 class="text-lg font-bold text-slate-700 flex items-center gap-2"><span class="bg-blue-100 p-2 rounded-xl text-blue-500">${iconHTML('edit-3', 20)}</span> 編輯好物</h3><div class="flex items-center gap-2"><button id="editor-save" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-bold shadow-md text-sm flex items-center gap-1">${iconHTML('check', 18)} 儲存</button><button id="editor-close" class="p-2 hover:bg-slate-100 rounded-full text-slate-400">${iconHTML('x', 26)}</button></div></div>
                     <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                        <div class="space-y-3"><label class="text-xs font-bold text-slate-400 uppercase ml-1">商品名稱</label><div class="flex gap-2"><input id="edit-name" type="text" value="${item.name}" class="flex-1 w-full p-4 bg-white border-2 border-transparent focus:border-blue-200 rounded-2xl focus:outline-none shadow-sm text-slate-700 font-bold text-lg"><button id="edit-magic" class="bg-gradient-to-br from-indigo-400 to-purple-400 text-white p-4 rounded-2xl shadow-md hover:scale-105 transition-transform w-16 flex justify-center items-center">${iconHTML('wand-2', 24)}</button></div></div>
-                        <div class="space-y-2"><label class="text-xs font-bold text-slate-400 uppercase ml-1">分類</label><div class="relative"><select id="edit-group" class="w-full p-4 pl-12 bg-white border-0 rounded-2xl shadow-sm appearance-none text-slate-600 font-medium text-base"><option value="">未分類</option>${groups.map(g => `<option value="${g.id}" ${item.groupId === g.id ? 'selected' : ''}>${g.title}</option>`).join('')}</select><div class="absolute left-4 top-4 text-blue-300 pointer-events-none">${iconHTML('tag', 18)}</div><div class="absolute right-4 top-4 text-slate-300 pointer-events-none">${iconHTML('chevron-down', 18)}</div></div></div>
-                        <div class="grid grid-cols-2 gap-3"><div class="space-y-2"><label class="text-xs font-bold text-slate-400 uppercase ml-1">價格</label><input id="edit-price" type="number" value="${item.price}" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm text-slate-700 font-bold text-lg"></div><div class="space-y-2"><label class="text-xs font-bold text-slate-400 uppercase ml-1">貨幣</label><select id="edit-currency" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm appearance-none text-slate-600 font-medium text-lg"><option value="TWD" ${item.currency==='TWD'?'selected':''}>TWD</option><option value="JPY" ${item.currency==='JPY'?'selected':''}>JPY</option></select></div></div>
-                        <div class="space-y-2"><label class="text-xs font-bold text-slate-400 uppercase ml-1">備註</label><textarea id="edit-note" rows="2" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm resize-none text-slate-600">${item.note||''}</textarea></div>
+                        <div class="space-y-3"><label class="text-sm font-bold text-slate-400 uppercase ml-1">商品名稱</label><div class="flex gap-2"><input id="edit-name" type="text" value="${item.name}" class="flex-1 w-full p-4 bg-white border-2 border-transparent focus:border-blue-200 rounded-2xl focus:outline-none shadow-sm text-slate-700 font-bold text-lg"><button id="edit-magic" class="bg-gradient-to-br from-indigo-400 to-purple-400 text-white p-4 rounded-2xl shadow-md hover:scale-105 transition-transform w-16 flex justify-center items-center shrink-0">${iconHTML('wand-2', 24)}</button></div></div>
+                        <div class="space-y-2"><label class="text-sm font-bold text-slate-400 uppercase ml-1">分類</label><div class="relative"><select id="edit-group" class="w-full p-4 pl-12 bg-white border-0 rounded-2xl shadow-sm appearance-none text-slate-600 font-medium text-lg"><option value="">未分類</option>${groups.map(g => `<option value="${g.id}" ${item.groupId === g.id ? 'selected' : ''}>${g.title}</option>`).join('')}</select><div class="absolute left-4 top-4 text-blue-300 pointer-events-none">${iconHTML('tag', 20)}</div><div class="absolute right-4 top-4 text-slate-300 pointer-events-none">${iconHTML('chevron-down', 20)}</div></div></div>
+                        <div class="grid grid-cols-2 gap-3"><div class="space-y-2"><label class="text-sm font-bold text-slate-400 uppercase ml-1">價格</label><input id="edit-price" type="number" value="${item.price}" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm text-slate-700 font-bold text-lg"></div><div class="space-y-2"><label class="text-sm font-bold text-slate-400 uppercase ml-1">貨幣</label><select id="edit-currency" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm appearance-none text-slate-600 font-medium text-lg"><option value="TWD" ${item.currency==='TWD'?'selected':''}>TWD</option><option value="JPY" ${item.currency==='JPY'?'selected':''}>JPY</option></select></div></div>
+                        <div class="space-y-2"><label class="text-sm font-bold text-slate-400 uppercase ml-1">備註</label><textarea id="edit-note" rows="3" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm resize-none text-slate-600 text-lg">${item.note||''}</textarea></div>
                     </div>
                 </div>
             </div>`;
-            refreshIcons();
-            document.getElementById('editor-close').onclick = () => overlay.innerHTML = '';
-            document.getElementById('editor-save').onclick = () => {
-                const updated = { ...item, name: document.getElementById('edit-name').value, price: Number(document.getElementById('edit-price').value), currency: document.getElementById('edit-currency').value, note: document.getElementById('edit-note').value, groupId: document.getElementById('edit-group').value || null };
-                updateItemInState(updated);
-                overlay.innerHTML = '';
-            };
-            document.getElementById('edit-magic').onclick = async function() {
-                const btn = this; const name = document.getElementById('edit-name').value;
-                if(!name) return;
-                btn.innerHTML = iconHTML('loader-2', 24, 'animate-spin');
-                try {
-                     const res = await callGemini(`Item: "${name}". Return JSON: { "price": number_twd, "note": "short tip" }`);
-                     if(res) { document.getElementById('edit-price').value = res.price||0; document.getElementById('edit-note').value = res.note||''; }
-                } catch(e){}
-                btn.innerHTML = iconHTML('wand-2', 24);
-                refreshIcons();
-            }
+             refreshIcons();
+             document.getElementById('editor-close').onclick = () => overlay.innerHTML = '';
+             document.getElementById('editor-save').onclick = () => { const updated = { ...item, name: document.getElementById('edit-name').value, price: Number(document.getElementById('edit-price').value), currency: document.getElementById('edit-currency').value, note: document.getElementById('edit-note').value, groupId: document.getElementById('edit-group').value || null }; updateItemInState(updated); overlay.innerHTML = ''; };
+             document.getElementById('edit-magic').onclick = async function() { const btn = this; const name = document.getElementById('edit-name').value; if(!name) return; btn.innerHTML = iconHTML('loader-2', 24, 'animate-spin'); try { const res = await callGemini(`Item: "${name}". Return JSON: { "price": number_twd, "note": "short tip" }`); if(res) { document.getElementById('edit-price').value = res.price||0; document.getElementById('edit-note').value = res.note||''; } } catch(e){} btn.innerHTML = iconHTML('wand-2', 24); refreshIcons(); }
         };
 
         const showAIImportModal = () => {
              const overlay = document.getElementById('modal-overlay');
-             overlay.innerHTML = `<div class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"><div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg border-4 border-white overflow-hidden"><div class="p-6 bg-white/80 border-b border-purple-50"><h3 class="text-base font-bold flex items-center gap-2 text-slate-700">${iconHTML('sparkles', 24, 'text-purple-400')} AI 智慧匯入</h3><p class="text-slate-500 text-sm mt-2">貼上文字，AI 幫你整理成清單！</p></div><div class="p-6 space-y-4"><textarea id="import-text" class="w-full h-48 p-4 bg-white border-0 rounded-3xl shadow-inner text-slate-600 resize-none outline-none" placeholder="例如：明天要買雞蛋、牛奶..."></textarea><div class="flex justify-end gap-3"><button id="import-cancel" class="px-6 py-3 text-slate-400 hover:bg-slate-100 rounded-2xl font-bold text-sm">取消</button><button id="import-go" class="px-8 py-3 bg-purple-400 hover:bg-purple-500 text-white rounded-2xl font-bold shadow-lg flex items-center gap-2 text-sm">${iconHTML('sparkles', 18)} 開始解析</button></div></div></div></div>`;
+             overlay.innerHTML = `<div class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"><div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg border-4 border-white overflow-hidden"><div class="p-6 bg-white/80 border-b border-purple-50"><h3 class="text-lg font-bold flex items-center gap-2 text-slate-700">${iconHTML('sparkles', 24, 'text-purple-400')} AI 智慧匯入</h3></div><div class="p-6 space-y-4"><textarea id="import-text" class="w-full h-48 p-4 bg-white border-0 rounded-3xl shadow-inner text-slate-600 resize-none outline-none text-base" placeholder="貼上文字，AI 自動幫你整理..."></textarea><div class="flex justify-end gap-3"><button id="import-cancel" class="px-6 py-3.5 text-slate-400 hover:bg-slate-100 rounded-2xl font-bold text-base">取消</button><button id="import-go" class="px-8 py-3.5 bg-purple-400 hover:bg-purple-500 text-white rounded-2xl font-bold shadow-lg flex items-center gap-2 text-base">${iconHTML('sparkles', 20)} 開始解析</button></div></div></div></div>`;
              refreshIcons();
              document.getElementById('import-cancel').onclick = () => overlay.innerHTML = '';
-             document.getElementById('import-go').onclick = async function() {
-                 const text = document.getElementById('import-text').value; if(!text.trim()) return;
-                 this.innerHTML = `${iconHTML('loader-2', 18, 'animate-spin')} 處理中...`; refreshIcons();
-                 try {
-                     const res = await callGemini(`Extract list from: "${text}". JSON: { "items": [{ "name": "str", "price": 0, "note": "str" }] }`);
-                     if(res && res.items) {
-                         state.pendingItemToAdd = { isBatch: true, items: res.items, name: `${res.items.length} 個項目` };
-                         overlay.innerHTML = '';
-                         showMoveTargetModal('add-tool'); // Reuse move modal to select list
-                     }
-                 } catch(e) { alert("解析失敗"); }
-                 this.innerHTML = `${iconHTML('sparkles', 18)} 開始解析`;
-             };
+             document.getElementById('import-go').onclick = async function() { const text = document.getElementById('import-text').value; if(!text.trim()) return; this.innerHTML = `${iconHTML('loader-2', 20, 'animate-spin')} 處理中...`; refreshIcons(); try { const res = await callGemini(`Extract list from: "${text}". JSON: { "items": [{ "name": "str", "price": 0, "note": "str" }] }`); if(res && res.items) { state.pendingItemToAdd = { isBatch: true, items: res.items, name: `${res.items.length} 個項目` }; overlay.innerHTML = ''; showMoveTargetModal('add-tool'); } } catch(e) { alert("解析失敗"); } this.innerHTML = `${iconHTML('sparkles', 20)} 開始解析`; };
         };
 
-        const showRestaurantModal = () => { /* similar to social, omitted for brevity but logic is same as before */ 
+        const showRestaurantModal = () => {
              const overlay = document.getElementById('modal-overlay');
-             overlay.innerHTML = `<div class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"><div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border-4 border-white overflow-hidden"><div class="p-5 bg-white border-b border-orange-50 flex items-center justify-between"><h3 class="font-bold flex gap-2 text-slate-700">${iconHTML('utensils', 24, 'text-orange-400')} 餐廳探查</h3><button id="rest-close" class="p-2 rounded-full hover:bg-slate-100">${iconHTML('x', 20)}</button></div><div id="rest-content" class="flex-1 p-6 overflow-y-auto bg-[#FDFBF7]"><div class="h-full flex flex-col items-center justify-center text-slate-400 gap-4"><div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">${iconHTML('map-pin', 32, 'text-orange-400')}</div><p>輸入餐廳名稱，AI 分析評價與菜色</p></div></div><div class="p-5 bg-white border-t border-orange-50 flex gap-2"><input id="rest-input" type="text" class="flex-1 p-4 bg-slate-50 rounded-full outline-none" placeholder="輸入餐廳名稱..."><button id="rest-go" class="w-14 h-14 bg-orange-400 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-500 transition-transform active:scale-95">${iconHTML('search', 24)}</button></div></div></div>`;
+             overlay.innerHTML = `<div class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"><div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[80vh] flex flex-col border-4 border-white overflow-hidden"><div class="p-5 bg-white border-b border-orange-50 flex items-center justify-between"><h3 class="font-bold flex gap-2 text-slate-700 text-lg">${iconHTML('utensils', 24, 'text-orange-400')} 餐廳探查</h3><button id="rest-close" class="p-2 rounded-full hover:bg-slate-100">${iconHTML('x', 24)}</button></div><div id="rest-content" class="flex-1 p-6 overflow-y-auto bg-[#FDFBF7]"><div class="h-full flex flex-col items-center justify-center text-slate-400 gap-4"><div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center">${iconHTML('map-pin', 36, 'text-orange-400')}</div><p class="text-center">輸入餐廳名稱<br>AI 分析評價與菜色</p></div></div><div class="p-5 bg-white border-t border-orange-50 flex gap-2"><input id="rest-input" type="text" class="flex-1 p-4 bg-slate-50 rounded-full outline-none text-base" placeholder="輸入餐廳名稱..."><button id="rest-go" class="w-14 h-14 bg-orange-400 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-500 transition-transform active:scale-95 shrink-0">${iconHTML('search', 24)}</button></div></div></div>`;
              refreshIcons();
              document.getElementById('rest-close').onclick = () => overlay.innerHTML = '';
-             document.getElementById('rest-go').onclick = async function() {
-                 const q = document.getElementById('rest-input').value; if(!q) return;
-                 const btn = this; const content = document.getElementById('rest-content');
-                 btn.innerHTML = iconHTML('loader-2', 24, 'animate-spin');
-                 try {
-                     const res = await callGemini(`Restaurant "${q}". JSON: { "name": "str", "rating": 4.5, "summary": "zh_sum", "dishes": ["d1", "d2"] }`, null, true);
-                     if(res) {
-                         content.innerHTML = `<div class="space-y-4 animate-fade-in"><h2 class="text-xl font-bold text-slate-800">${res.name} ★${res.rating}</h2><p class="p-4 bg-white rounded-2xl shadow-sm text-slate-600 text-sm">${res.summary}</p><div class="grid gap-2">${res.dishes.map(d=>`<button class="bg-white p-3 rounded-xl shadow-sm flex justify-between font-bold text-slate-700 w-full text-left" onclick="window.addRestItem('${d}')">${d} ${iconHTML('plus',16)}</button>`).join('')}</div></div>`;
-                         window.addRestItem = (n) => { state.pendingItemToAdd={name:n, note:`來自 ${res.name}`}; showMoveTargetModal('add-tool'); };
-                         refreshIcons();
-                     }
-                 } catch(e) { alert("查詢失敗"); }
-                 btn.innerHTML = iconHTML('search', 24);
-             };
+             document.getElementById('rest-go').onclick = async function() { const q = document.getElementById('rest-input').value; if(!q) return; const btn = this; const content = document.getElementById('rest-content'); btn.innerHTML = iconHTML('loader-2', 24, 'animate-spin'); try { const res = await callGemini(`Restaurant "${q}". JSON: { "name": "str", "rating": 4.5, "summary": "zh_sum", "dishes": ["d1", "d2"] }`, null, true); if(res) { content.innerHTML = `<div class="space-y-4 animate-fade-in"><h2 class="text-xl font-bold text-slate-800">${res.name} ★${res.rating}</h2><p class="p-4 bg-white rounded-2xl shadow-sm text-slate-600 text-base">${res.summary}</p><div class="grid gap-2">${res.dishes.map(d=>`<button class="bg-white p-4 rounded-xl shadow-sm flex justify-between font-bold text-slate-700 w-full text-left" onclick="window.addRestItem('${d}')">${d} ${iconHTML('plus',20)}</button>`).join('')}</div></div>`; window.addRestItem = (n) => { state.pendingItemToAdd={name:n, note:`來自 ${res.name}`}; showMoveTargetModal('add-tool'); }; refreshIcons(); } } catch(e) { alert("查詢失敗"); } btn.innerHTML = iconHTML('search', 24); };
         };
 
         // --- Data Logic ---
@@ -567,52 +542,33 @@
         const addItemToActiveList = (itemData) => { if (!state.selectedListId) return alert("請先選擇清單"); updateItemInActiveList(items => [{ id: generateId(), currency: 'TWD', checked: false, groupId: null, ...itemData }, ...items]); state.newItemName = ''; render(); };
         const updateItemInState = (item) => updateItemInActiveList(items => items.map(i => i.id === item.id ? item : i));
         
-        // --- Move Logic Impl ---
+        // --- Move Logic ---
         const executeMove = (targetId) => {
-             const target = state.moveTarget;
-             let newStructure = JSON.parse(JSON.stringify(state.structure));
-             
+             const target = state.moveTarget; let newStructure = JSON.parse(JSON.stringify(state.structure));
              if(target.type === 'move-list') {
-                 // 1. Remove
-                 let listNode = null;
-                 const remove = (nodes) => nodes.filter(n => { if(n.id === target.id){ listNode=n; return false; } if(n.children) n.children=remove(n.children); return true; });
+                 let listNode = null; const remove = (nodes) => nodes.filter(n => { if(n.id === target.id){ listNode=n; return false; } if(n.children) n.children=remove(n.children); return true; });
                  newStructure = remove(newStructure);
-                 // 2. Add
-                 if(listNode) {
-                     if(targetId === 'root') newStructure.push(listNode);
-                     else {
-                         const add = (nodes) => nodes.map(n => { if(n.id === targetId) { n.children = [...(n.children||[]), listNode]; } else if(n.children) n.children=add(n.children); return n; });
-                         newStructure = add(newStructure);
-                     }
-                 }
+                 if(listNode) { if(targetId === 'root') newStructure.push(listNode); else { const add = (nodes) => nodes.map(n => { if(n.id === targetId) { n.children = [...(n.children||[]), listNode]; } else if(n.children) n.children=add(n.children); return n; }); newStructure = add(newStructure); } }
              } else if(target.type === 'move-item') {
-                 // 1. Remove
                  const remove = (nodes) => nodes.map(n => { if(n.type==='list' && n.items) n.items = n.items.filter(i=>i.id !== target.id); if(n.children) n.children=remove(n.children); return n; });
                  newStructure = remove(newStructure);
-                 // 2. Add
                  const add = (nodes) => nodes.map(n => { if(n.id === targetId) n.items.unshift({ ...target.itemData, groupId: null }); if(n.children) n.children=add(n.children); return n; });
                  newStructure = add(newStructure);
              }
              saveData(newStructure);
         };
-
         const confirmToolAddItem = (targetListId) => {
             const item = state.pendingItemToAdd;
             const newItems = item.isBatch ? item.items.map(i=>({id:generateId(), ...i, checked:false, groupId:null})) : [{id:generateId(), ...item, checked:false, groupId:null}];
             const addDeep = (nodes) => nodes.map(n => { if (n.id === targetListId) return { ...n, items: [...newItems, ...n.items] }; if (n.children) return { ...n, children: addDeep(n.children) }; return n; });
-            saveData(addDeep(state.structure));
-            state.pendingItemToAdd = null;
-            state.selectedListId = targetListId;
-            alert("已加入清單！");
+            saveData(addDeep(state.structure)); state.pendingItemToAdd = null; state.selectedListId = targetListId; alert("已加入清單！");
         };
 
         // --- Event Delegation ---
         document.addEventListener('click', (e) => {
             const el = e.target.closest('[data-action]'); if (!el) return;
             const action = el.dataset.action, id = el.dataset.id;
-
             switch(action) {
-                // Sidebar
                 case 'toggle-sidebar': state.isSidebarOpen = !state.isSidebarOpen; render(); break;
                 case 'close-sidebar': state.isSidebarOpen = false; render(); break;
                 case 'switch-tab-lists': state.sidebarTab = 'lists'; render(); break;
@@ -623,39 +579,16 @@
                 case 'add-list-to-folder': e.stopPropagation(); showDialog('prompt', '新增清單', '名稱', val => { if(!val)return; const newList={id:generateId(),type:'list',title:val,items:[],groups:[]}; saveData(updateDeep(state.structure, id, n=>({...n, isOpen:true, children:[...(n.children||[]), newList]}))); state.selectedListId=newList.id; render(); }); break;
                 case 'delete-node': e.stopPropagation(); showDialog('confirm', '刪除', '確定要刪除嗎？', () => { const filter=(ns)=>ns.filter(n=>n.id!==id).map(n=>({...n, children:n.children?filter(n.children):undefined})); saveData(filter(state.structure)); if(state.selectedListId===id){state.selectedListId=null;render();} }); break;
                 case 'rename-node': e.stopPropagation(); showDialog('prompt', '重新命名', '新名稱', val => val && saveData(updateDeep(state.structure, id, n=>({...n, title:val})))); break;
-                
-                // Move Logic
-                case 'move-list': e.stopPropagation(); {
-                     // Find parent id
-                     const findP = (nodes, pid) => { for(let n of nodes){ if(n.id===id) return pid; if(n.children){const f=findP(n.children, n.id); if(f) return f;} } return null; };
-                     const pid = findP(state.structure, 'root') || 'root';
-                     state.moveTarget = { type: 'move-list', id: id, currentParentId: pid };
-                     showMoveTargetModal('move-list');
-                } break;
-                case 'move-item': e.stopPropagation(); {
-                     const list = state.structure.flatMap(f=>f.children?[f,...f.children]:[f]).find(l=>l.id===state.selectedListId);
-                     const item = list.items.find(i=>i.id===id);
-                     state.moveTarget = { type: 'move-item', id: id, currentParentId: state.selectedListId, itemData: item };
-                     showMoveTargetModal('move-item');
-                } break;
-
-                // Main
+                case 'move-list': e.stopPropagation(); { const findP = (nodes, pid) => { for(let n of nodes){ if(n.id===id) return pid; if(n.children){const f=findP(n.children, n.id); if(f) return f;} } return null; }; const pid = findP(state.structure, 'root') || 'root'; state.moveTarget = { type: 'move-list', id: id, currentParentId: pid }; showMoveTargetModal('move-list'); } break;
+                case 'move-item': e.stopPropagation(); { const list = state.structure.flatMap(f=>f.children?[f,...f.children]:[f]).find(l=>l.id===state.selectedListId); const item = list.items.find(i=>i.id===id); state.moveTarget = { type: 'move-item', id: id, currentParentId: state.selectedListId, itemData: item }; showMoveTargetModal('move-item'); } break;
                 case 'toggle-view': state.viewMode = state.viewMode === 'list' ? 'grid' : 'list'; render(); break;
                 case 'add-main-item': const v = document.getElementById('main-input').value; if(v) addItemToActiveList({ name: v }); break;
                 case 'create-group': showDialog('prompt', '新增分區', '名稱', val => val && saveData(updateDeep(state.structure, state.selectedListId, n=>({...n, groups:[...(n.groups||[]), {id:generateId(), title:val, isOpen:true}]})))) ; break;
                 case 'toggle-group': saveData(updateDeep(state.structure, state.selectedListId, n=>({...n, groups:n.groups.map(g=>g.id===id?{...g, isOpen:!g.isOpen}:g)}))); break;
                 case 'delete-group': e.stopPropagation(); showDialog('confirm','刪除分類','商品會變為未分類', () => saveData(updateDeep(state.structure, state.selectedListId, n=>({...n, groups:n.groups.filter(g=>g.id!==id), items:n.items.map(i=>i.groupId===id?{...i,groupId:null}:i)})))); break;
-                
-                // Items
                 case 'toggle-check': e.stopPropagation(); updateItemInActiveList(items => items.map(i => i.id === id ? { ...i, checked: !i.checked } : i)); break;
                 case 'delete-item': e.stopPropagation(); showDialog('confirm', '刪除商品', '確定？', () => updateItemInActiveList(items => items.filter(i => i.id !== id))); break;
-                case 'edit-item': 
-                    const list = state.structure.flatMap(f=>f.children?[f,...f.children]:[f]).find(l=>l.id===state.selectedListId);
-                    const item = list?.items.find(i=>i.id===id);
-                    if(item) showEditor(item);
-                    break;
-
-                // Tools
+                case 'edit-item': const l = state.structure.flatMap(f=>f.children?[f,...f.children]:[f]).find(l=>l.id===state.selectedListId); const i = l?.items.find(i=>i.id===id); if(i) showEditor(i); break;
                 case 'open-key-settings': showApiKeyModal(); break;
                 case 'open-tool-import': showAIImportModal(); break;
                 case 'open-tool-recommend': alert("請使用「智慧匯入」或「餐廳探查」功能"); break;
@@ -681,6 +614,8 @@
 
         document.addEventListener('input', (e) => { if(e.target.id === 'main-input') state.newItemName = e.target.value; });
 
+        // Initial check for mobile sidebar
+        if (window.innerWidth < 768) state.isSidebarOpen = false;
     </script>
 </body>
 </html>
