@@ -3,684 +3,701 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BlueBuy Shopping List</title>
+    <title>BlueBuy AI Shopping List</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://unpkg.com/lucide@latest"></script>
 
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
     <style>
-        /* Custom Scrollbar & Utils */
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f1f5f9; /* Slate-100 outside */
+            overflow: hidden; /* Prevent body scroll, handle in app */
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 手機尺寸模擬容器 */
+        #mobile-frame {
+            width: 100%;
+            height: 100%;
+            background-color: #FFF9F5;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (min-width: 768px) {
+            #mobile-frame {
+                width: 414px; /* iPhone Max width approximate */
+                height: 850px;
+                border-radius: 40px;
+                border: 8px solid #fff;
+            }
+        }
+
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
-            height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
             background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
+            background-color: rgba(203, 213, 225, 0.5);
             border-radius: 20px;
         }
+
         .animate-fade-in {
-            animation: fadeIn 0.3s ease-in-out;
+            animation: fadeIn 0.3s ease-out;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        body {
-            -webkit-tap-highlight-color: transparent;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        /* Mobile layout fixes */
-        .mobile-height {
-            height: 100dvh; /* dynamic viewport height */
-        }
+
+        /* Hide elements helper */
+        .hidden { display: none !important; }
     </style>
 </head>
-<body class="bg-[#FFF9F5] text-slate-600 overflow-hidden selection:bg-blue-100">
+<body>
 
-    <div id="app" class="mobile-height w-full flex flex-col md:flex-row relative">
-        </div>
-
-    <div id="apiKeyModal" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center border-4 border-white/50">
-            <div class="w-16 h-16 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="key" class="w-8 h-8"></i>
+    <div id="mobile-frame">
+        
+        <aside id="sidebar" class="absolute inset-y-0 left-0 z-30 w-64 bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col h-full">
+            <div class="p-6 pb-4 flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-100 rounded-xl -rotate-6 flex items-center justify-center text-blue-500">
+                    <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                </div>
+                <h1 class="text-xl font-black text-slate-700 tracking-wider">BlueBuy</h1>
             </div>
-            <h2 class="text-xl font-bold text-slate-800 mb-2">設定 API Key</h2>
-            <p class="text-slate-500 text-sm mb-6">請輸入您的 Google Gemini API Key 以啟用 AI 功能。</p>
-            <input type="password" id="apiKeyInput" placeholder="Paste API Key here..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-4 focus:ring-2 focus:ring-blue-400 outline-none text-center font-bold">
-            <button onclick="saveApiKey()" class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95">
-                開始使用
-            </button>
+            
+            <div id="sidebar-content" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                </div>
+
+            <div class="p-4 border-t border-slate-100">
+                <div class="flex bg-slate-100 p-1 rounded-2xl">
+                    <button onclick="app.setTab('lists')" id="tab-lists" class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all">
+                        <i data-lucide="menu" class="w-4 h-4"></i> 清單
+                    </button>
+                    <button onclick="app.setTab('tools')" id="tab-tools" class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all">
+                        <i data-lucide="grid-2x2" class="w-4 h-4"></i> 工具
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <div id="sidebar-overlay" onclick="app.toggleSidebar(false)" class="absolute inset-0 bg-black/20 z-20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+
+        <header class="h-20 flex items-center px-6 justify-between flex-shrink-0 bg-[#FFF9F5]/90 backdrop-blur-md z-10 sticky top-0">
+            <div class="flex items-center gap-4 flex-1 min-w-0">
+                <button onclick="app.toggleSidebar(true)" class="p-2 -ml-2 text-slate-400 hover:bg-white rounded-xl transition-colors">
+                    <i data-lucide="list" class="w-6 h-6"></i>
+                </button>
+                <div class="flex flex-col">
+                    <h2 id="header-title" class="text-xl font-black text-slate-700 truncate">載入中...</h2>
+                </div>
+                <span id="header-count" class="hidden bg-white text-blue-400 text-xs font-bold px-2 py-1 rounded-full shadow-sm border-2 border-white ring-1 ring-blue-50">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="app.toggleViewMode()" class="p-2 rounded-xl hover:bg-white text-slate-500 transition-colors">
+                    <i id="view-mode-icon" data-lucide="layout-grid" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto px-6 pb-24 scroll-smooth custom-scrollbar relative" id="main-scroll">
+            
+            <form onsubmit="app.handleAddItem(event)" class="relative group mb-8 mt-2 sticky top-2 z-10">
+                <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                    <i data-lucide="plus" class="w-6 h-6 text-blue-300"></i>
+                </div>
+                <input type="text" id="new-item-input" placeholder="想要買什麼呢..." 
+                    class="w-full pl-14 pr-24 py-5 bg-white rounded-[2rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg placeholder:text-slate-300 text-slate-600 font-bold">
+                <button type="submit" class="absolute right-2 top-2 bottom-2 px-6 bg-blue-400 hover:bg-blue-500 text-white rounded-[1.6rem] font-bold transition-transform active:scale-95 shadow-lg shadow-blue-200 text-sm">
+                    加入
+                </button>
+            </form>
+
+            <div id="list-container" class="space-y-4 pb-10">
+                </div>
+        </main>
+
+        <div id="api-modal" class="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center p-6 animate-fade-in">
+            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm text-center shadow-2xl">
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl mx-auto flex items-center justify-center text-white mb-6 shadow-lg">
+                    <i data-lucide="key" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800 mb-2">歡迎使用 BlueBuy</h2>
+                <p class="text-slate-500 text-sm mb-6">請輸入您的 Google Gemini API Key 以啟用 AI 購物顧問與分析功能。</p>
+                <input type="password" id="api-key-input" placeholder="Paste API Key here..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
+                <button onclick="app.submitApiKey()" class="w-full py-4 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg">開始使用</button>
+                <p class="text-[10px] text-slate-300 mt-4">Key 僅暫存於此頁面，重新整理需重新輸入</p>
+            </div>
         </div>
+
+        <div id="dialog-modal" class="absolute inset-0 bg-black/40 z-[90] flex items-center justify-center p-6 hidden">
+            <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-6 border-4 border-white/50">
+                <div class="flex flex-col items-center text-center gap-3 mb-5">
+                    <div id="dialog-icon-container" class="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center">
+                        <i id="dialog-icon" data-lucide="alert-circle" class="w-7 h-7"></i>
+                    </div>
+                    <h3 id="dialog-title" class="text-base font-bold text-slate-700">標題</h3>
+                </div>
+                <p id="dialog-message" class="text-slate-600 mb-6 text-center font-medium text-sm leading-relaxed">訊息內容</p>
+                <div id="dialog-input-container" class="hidden mb-6">
+                    <input type="text" id="dialog-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-400 text-slate-700 text-center outline-none font-bold" placeholder="輸入...">
+                </div>
+                <div class="flex gap-3">
+                    <button id="dialog-cancel" onclick="app.closeDialog()" class="flex-1 py-3 text-slate-400 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-sm">取消</button>
+                    <button id="dialog-confirm" class="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold shadow-md transition-colors text-sm">確認</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-[80] flex flex-col items-center justify-center hidden backdrop-blur-sm">
+            <i data-lucide="loader-2" class="w-10 h-10 text-blue-500 animate-spin mb-4"></i>
+            <p class="text-blue-500 font-bold animate-pulse">AI 正在思考中...</p>
+        </div>
+
     </div>
 
     <script>
-        // --- State Management ---
+        // --- Helper: Generate ID ---
         const generateId = () => Math.random().toString(36).substr(2, 9);
-        
-        // Initial Data Structure
+
+        // --- Initial Data ---
         const initialData = [
-          {
-            id: 'folder-1',
-            type: 'folder',
-            title: '便利商店 🏪',
-            isOpen: true,
-            children: [
-              {
-                id: 'list-1',
-                type: 'list',
-                title: '7-ELEVEN',
-                groups: [
-                   { id: 'group-1', title: '飲料 Drinks', isOpen: true },
-                   { id: 'group-2', title: '熟食 Food', isOpen: true }
-                ],
-                items: [
-                  {
-                    id: 'item-1',
-                    name: '御飯糰',
-                    price: 35,
-                    currency: 'TWD',
-                    note: '鮪魚口味',
-                    ingredients: '白米、鮪魚、海苔、美乃滋 (熱量約 200大卡)',
-                    locations: ['7-ELEVEN'],
-                    links: [],
-                    image: 'https://loremflickr.com/300/300/onigiri',
-                    checked: false,
-                    groupId: 'group-2'
-                  }
+            {
+                id: 'folder-1', type: 'folder', title: '便利商店 🏪', isOpen: true,
+                children: [
+                    {
+                        id: 'list-1', type: 'list', title: '7-ELEVEN',
+                        groups: [],
+                        items: [
+                            {
+                                id: 'item-1', name: '御飯糰', price: 35, currency: 'TWD', note: '鮪魚口味',
+                                ingredients: '白米、鮪魚、海苔', locations: ['7-ELEVEN'], links: [],
+                                image: 'https://loremflickr.com/300/300/onigiri', checked: false, groupId: null
+                            }
+                        ]
+                    }
                 ]
-              }
-            ]
-          }
+            }
         ];
 
-        const CURRENCIES = ['TWD', 'USD', 'JPY', 'EUR', 'KRW'];
-
-        // Global State
-        const state = {
-            apiKey: localStorage.getItem('bluebuy_apiKey') || '',
-            structure: JSON.parse(localStorage.getItem('bluebuy_data')) || initialData,
-            sidebarOpen: true,
-            sidebarTab: 'lists',
-            selectedListId: null, // Will default to first list logic
-            viewMode: 'list',
-            loading: false,
-            isSaving: false,
-            newItemName: '',
-            
-            // Modal States
-            modals: {
-                restaurant: false,
-                hotel: false,
-                aiRec: false,
-                aiImport: false,
-                listSelector: false,
-                editor: false,
-                dialog: { isOpen: false, type: 'alert', title: '', message: '', inputValue: '', onConfirm: null }
-            },
-            
-            // Temporary data for modals
-            pendingItem: null,
-            editingItem: null,
-            aiResults: null, 
-            isProcessingAI: false
-        };
-
-        // --- Helpers ---
-        function saveToStorage() {
-            state.isSaving = true;
-            render();
-            localStorage.setItem('bluebuy_data', JSON.stringify(state.structure));
-            setTimeout(() => {
-                state.isSaving = false;
-                render();
-            }, 500);
-        }
-
-        function getAllergens(text) {
-            if (!text) return [];
-            const features = [];
-            if (text.match(/辣|椒|辛|麻辣|七味/)) features.push({ emoji: '🌶️', color: 'text-rose-500', bg: 'bg-rose-50', label: '辛辣' });
-            if (text.match(/奶|乳|起司|起士|奶油|布丁|優格/)) features.push({ emoji: '🥛', color: 'text-sky-500', bg: 'bg-sky-50', label: '乳製品' });
-            if (text.match(/蝦|蟹|貝|魚|海鮮|明太/)) features.push({ emoji: '🦐', color: 'text-indigo-500', bg: 'bg-indigo-50', label: '海鮮' });
-            if (text.match(/花生|堅果|核桃|杏仁|腰果|芝麻/)) features.push({ emoji: '🥜', color: 'text-amber-600', bg: 'bg-amber-50', label: '堅果' });
-            if (text.match(/麥|麵粉|麵包|麩質/)) features.push({ emoji: '🍞', color: 'text-yellow-600', bg: 'bg-yellow-50', label: '麩質' });
-            return features;
-        }
-
-        function findList(nodes, id) {
-            for (const node of nodes) {
-                if (node.id === id && node.type === 'list') return node;
-                if (node.children) { const found = findList(node.children, id); if (found) return found; }
-            }
-            return null;
-        }
-
-        // --- Gemini API ---
-        async function callGemini(prompt, schema = null, useSearch = false) {
-            if (!state.apiKey) {
-                alert("請先設定 API Key");
-                return;
-            }
-
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
-            };
-            if (schema) payload.generationConfig.responseSchema = schema;
-            if (useSearch) payload.tools = [{ google_search: {} }];
-
-            try {
-                const response = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${state.apiKey}`,
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    }
-                );
-
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        // --- App Class ---
+        class ShoppingApp {
+            constructor() {
+                this.apiKey = "";
+                this.state = {
+                    structure: [],
+                    activeListId: null,
+                    viewMode: 'list', // 'list' or 'grid'
+                    sidebarTab: 'lists', // 'lists' or 'tools'
+                    isSidebarOpen: false
+                };
                 
-                const data = await response.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!text) throw new Error("Empty response");
-
-                let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const start = cleanText.indexOf('{');
-                const end = cleanText.lastIndexOf('}');
-                if (start !== -1 && end !== -1) {
-                    cleanText = cleanText.substring(start, end + 1);
+                // Load from LocalStorage
+                const saved = localStorage.getItem('bluebuy_data');
+                if (saved) {
+                    this.state.structure = JSON.parse(saved);
+                } else {
+                    this.state.structure = initialData;
                 }
-                return JSON.parse(cleanText);
-            } catch (error) {
-                console.error("Gemini API Error", error);
-                throw error;
-            }
-        }
-
-        // --- Core Logic Actions ---
-
-        function toggleFolder(id) {
-            const toggleDeep = (nodes) => nodes.map(node => {
-                if (node.id === id) return { ...node, isOpen: !node.isOpen };
-                if (node.children) return { ...node, children: toggleDeep(node.children) };
-                return node;
-            });
-            state.structure = toggleDeep(state.structure);
-            saveToStorage();
-        }
-
-        function selectList(id) {
-            state.selectedListId = id;
-            if (window.innerWidth < 768) state.sidebarOpen = false;
-            render();
-        }
-
-        function addItem(e) {
-            if (e) e.preventDefault();
-            const input = document.getElementById('mainInput');
-            const val = input.value.trim();
-            if (!val || !state.selectedListId) return;
-
-            const newItem = { id: generateId(), name: val, price: 0, currency: 'TWD', note: '', ingredients: '', links: [], image: '', checked: false, groupId: null };
-            
-            const addDeep = (nodes) => nodes.map(n => {
-                if (n.id === state.selectedListId) return { ...n, items: [newItem, ...n.items] };
-                if (n.children) return { ...n, children: addDeep(n.children) };
-                return n;
-            });
-
-            state.structure = addDeep(state.structure);
-            state.newItemName = ''; // Reset
-            state.editingItem = newItem;
-            state.modals.editor = true;
-            saveToStorage();
-        }
-
-        function toggleCheck(itemId) {
-            const togDeep = (nodes) => nodes.map(n => {
-                if (n.type === 'list') return { ...n, items: n.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i) };
-                if (n.children) return { ...n, children: togDeep(n.children) };
-                return n;
-            });
-            state.structure = togDeep(state.structure);
-            saveToStorage();
-        }
-
-        function deleteItem(itemId) {
-            openDialog('confirm', '刪除商品', '確定要刪除這個商品嗎？', () => {
-                const delDeep = (nodes) => nodes.map(n => {
-                    if (n.type === 'list') return { ...n, items: n.items.filter(i => i.id !== itemId) };
-                    if (n.children) return { ...n, children: delDeep(n.children) };
-                    return n;
-                });
-                state.structure = delDeep(state.structure);
-                if (state.modals.editor && state.editingItem?.id === itemId) state.modals.editor = false;
-                saveToStorage();
-            });
-        }
-
-        function openEditModal(item) {
-            state.editingItem = JSON.parse(JSON.stringify(item)); // Clone
-            state.modals.editor = true;
-            render();
-        }
-
-        function saveEditedItem() {
-            // Collect data from DOM
-            const item = state.editingItem;
-            // (In a full app, we'd bind inputs, here we assume state.editingItem is updated by input events)
-            
-            const saveDeep = (nodes) => nodes.map(n => {
-                if (n.type === 'list') return { ...n, items: n.items.map(i => i.id === item.id ? item : i) };
-                if (n.children) return { ...n, children: saveDeep(n.children) };
-                return n;
-            });
-            state.structure = saveDeep(state.structure);
-            state.modals.editor = false;
-            state.editingItem = null;
-            saveToStorage();
-        }
-
-        // --- AI Actions ---
-        async function runRestaurantSearch() {
-            const query = document.getElementById('restaurantInput').value;
-            if (!query) return;
-            state.isProcessingAI = true;
-            render();
-            
-            try {
-                const prompt = `Search Google Maps for restaurant: "${query}". Analyze reviews and info. Return JSON: { "name": "Full Name", "rating": 4.5, "total_reviews": "100+", "address": "Address", "summary": "Concise summary in Traditional Chinese", "popular_dishes": ["Dish 1", "Dish 2"], "image_keyword": "keyword" }`;
-                state.aiResults = await callGemini(prompt, null, true);
-            } catch(e) {
-                openDialog('alert', '錯誤', '分析失敗，請重試。');
-            } finally {
-                state.isProcessingAI = false;
-                render();
-            }
-        }
-
-        // --- Dialog / Modal Logic ---
-        function openDialog(type, title, message, onConfirm) {
-            state.modals.dialog = { isOpen: true, type, title, message, inputValue: '', onConfirm };
-            render();
-            // Focus input if prompt
-            if (type === 'prompt') setTimeout(() => document.getElementById('dialogInput')?.focus(), 100);
-        }
-
-        function closeDialog() {
-            state.modals.dialog.isOpen = false;
-            render();
-        }
-
-        function handleDialogConfirm() {
-            const val = document.getElementById('dialogInput')?.value;
-            if (state.modals.dialog.onConfirm) state.modals.dialog.onConfirm(val);
-            closeDialog();
-        }
-
-        // --- Rendering (The HTML Generator) ---
-
-        function renderIcon(name, size = 16, className = '') {
-            return `<i data-lucide="${name}" class="${className}" style="width:${size}px; height:${size}px;"></i>`;
-        }
-
-        function renderSidebarItem(node, level = 0) {
-            const paddingLeft = level * 16 + 24;
-            const isSelected = node.id === state.selectedListId;
-            
-            if (node.type === 'folder') {
-                return `
-                <div class="my-2">
-                    <div onclick="toggleFolder('${node.id}')" class="group flex items-center justify-between py-3 pr-3 cursor-pointer text-slate-600 transition-all mr-2 rounded-r-full hover:bg-blue-50" style="padding-left: ${paddingLeft}px">
-                        <div class="flex items-center gap-2 font-bold tracking-wide overflow-hidden">
-                            ${node.isOpen ? renderIcon('chevron-down', 16, 'text-blue-400') : renderIcon('chevron-right', 16, 'text-slate-400')}
-                            ${renderIcon('folder', 18, 'text-blue-400 fill-blue-50')}
-                            <span class="truncate text-sm">${node.title}</span>
-                        </div>
-                        <div class="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button onclick="event.stopPropagation(); addListPrompt('${node.id}')" class="p-1.5 text-blue-400 hover:text-blue-600 bg-white rounded-full shadow-sm border border-slate-100">${renderIcon('plus', 14)}</button>
-                        </div>
-                    </div>
-                    ${node.isOpen && node.children ? `
-                        <div class="relative">
-                            <div class="absolute left-[33px] top-0 bottom-4 w-0.5 border-l-2 border-dotted border-blue-200 ml-4"></div>
-                            ${node.children.map(child => renderSidebarItem(child, level + 1)).join('')}
-                        </div>
-                    ` : ''}
-                </div>`;
-            } else {
-                return `
-                <div class="my-2">
-                    <div onclick="selectList('${node.id}')" class="group flex items-center justify-between py-3 pr-3 cursor-pointer transition-all mr-2 rounded-r-full ${isSelected ? 'bg-blue-100 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-100'}" style="padding-left: ${paddingLeft}px">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <div class="w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-slate-300'}"></div>
-                            <span class="truncate tracking-wide text-sm">${node.title}</span>
-                        </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${isSelected ? 'bg-white text-blue-500' : 'bg-slate-200 text-slate-500'}">${node.items?.length || 0}</span>
-                    </div>
-                </div>`;
-            }
-        }
-
-        function renderItemCard(item) {
-            const allergens = getAllergens(item.name + (item.ingredients || ''));
-            const isGrid = state.viewMode === 'grid';
-            
-            // Item Logic
-            const imageHtml = item.image 
-                ? `<img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover">` 
-                : `<div class="w-full h-full flex items-center justify-center text-slate-300">${renderIcon('image', 20)}</div>`;
-
-            return `
-            <div class="group relative bg-white rounded-[24px] transition-all duration-300 overflow-hidden border border-slate-100 ${item.checked ? 'opacity-50 bg-slate-50 shadow-none grayscale' : 'shadow-[0_10px_30px_-10px_rgba(224,231,255,0.7)] hover:shadow-[0_15px_35px_-10px_rgba(224,231,255,0.9)] hover:-translate-y-1'} ${isGrid ? 'p-4 flex flex-col' : 'p-5 flex gap-4 items-start'}" onclick="openEditModal(${JSON.stringify(item).replace(/"/g, '&quot;')})">
                 
-                ${!isGrid ? `
-                <button onclick="event.stopPropagation(); toggleCheck('${item.id}')" class="flex-shrink-0 w-8 h-8 rounded-full border-[3px] flex items-center justify-center transition-all mt-1 ${item.checked ? 'bg-blue-300 border-blue-300 text-white' : 'border-slate-200 text-transparent hover:border-blue-300'}">
-                    ${renderIcon('check', 16)}
-                </button>
-                <div class="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white shadow-sm mt-0.5 object-cover">
-                    ${imageHtml}
-                </div>` : ''}
+                // Set initial active list if exists
+                if (this.state.structure.length > 0) {
+                    const firstList = this.findFirstList(this.state.structure);
+                    if (firstList) this.state.activeListId = firstList.id;
+                }
 
-                ${isGrid ? `
-                 <div class="relative">
-                     <div class="w-full aspect-video bg-slate-50 rounded-2xl overflow-hidden mb-3 border-2 border-white shadow-sm">${imageHtml}</div>
-                     <button onclick="event.stopPropagation(); toggleCheck('${item.id}')" class="absolute top-2 right-2 w-8 h-8 rounded-full border-[3px] flex items-center justify-center bg-white shadow-md ${item.checked ? 'border-blue-300 text-blue-400' : 'border-slate-200 text-slate-200'}">${renderIcon('check', 16)}</button>
-                 </div>
-                ` : ''}
+                // Render loop
+                this.render();
+            }
 
-                <div class="flex-1 min-w-0 flex flex-col gap-2">
-                    <div class="flex justify-between items-start gap-2">
-                        <h3 class="font-bold text-base leading-snug break-words tracking-wide ${item.checked ? 'line-through text-slate-400' : 'text-slate-700'}">${item.name}</h3>
-                        ${item.price > 0 ? `<div class="flex-shrink-0 font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-2xl text-xs whitespace-nowrap">${item.currency === 'JPY' ? '¥' : '$'}${item.price}</div>` : ''}
-                    </div>
+            // --- Core Logic ---
+
+            save() {
+                localStorage.setItem('bluebuy_data', JSON.stringify(this.state.structure));
+                this.render();
+            }
+
+            findNode(nodes, id) {
+                for (let node of nodes) {
+                    if (node.id === id) return node;
+                    if (node.children) {
+                        const found = this.findNode(node.children, id);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            findFirstList(nodes) {
+                for (let node of nodes) {
+                    if (node.type === 'list') return node;
+                    if (node.children) {
+                        const found = this.findFirstList(node.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            // --- UI Actions ---
+
+            submitApiKey() {
+                const input = document.getElementById('api-key-input');
+                if (input.value.trim().length > 0) {
+                    this.apiKey = input.value.trim();
+                    document.getElementById('api-modal').classList.add('hidden');
+                } else {
+                    alert("請輸入 API Key");
+                }
+            }
+
+            setTab(tab) {
+                this.state.sidebarTab = tab;
+                this.renderSidebar();
+            }
+
+            toggleSidebar(forceState) {
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('sidebar-overlay');
+                const isOpen = forceState !== undefined ? forceState : !this.state.isSidebarOpen;
+                this.state.isSidebarOpen = isOpen;
+
+                if (isOpen) {
+                    sidebar.classList.remove('-translate-x-full');
+                    overlay.classList.remove('hidden');
+                    setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+                } else {
+                    sidebar.classList.add('-translate-x-full');
+                    overlay.classList.add('opacity-0');
+                    setTimeout(() => overlay.classList.add('hidden'), 300);
+                }
+            }
+
+            selectList(id) {
+                this.state.activeListId = id;
+                this.toggleSidebar(false);
+                this.render();
+            }
+
+            toggleFolder(id) {
+                const node = this.findNode(this.state.structure, id);
+                if (node && node.type === 'folder') {
+                    node.isOpen = !node.isOpen;
+                    this.save();
+                }
+            }
+
+            toggleViewMode() {
+                this.state.viewMode = this.state.viewMode === 'list' ? 'grid' : 'list';
+                const icon = document.getElementById('view-mode-icon');
+                icon.setAttribute('data-lucide', this.state.viewMode === 'list' ? 'layout-grid' : 'align-justify');
+                this.render();
+            }
+
+            // --- Data Manipulation ---
+
+            handleAddItem(e) {
+                e.preventDefault();
+                const input = document.getElementById('new-item-input');
+                const name = input.value.trim();
+                if (!name || !this.state.activeListId) return;
+
+                const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                if (activeList) {
+                    activeList.items.unshift({
+                        id: generateId(),
+                        name: name,
+                        price: 0,
+                        currency: 'TWD',
+                        note: '',
+                        ingredients: '',
+                        locations: [],
+                        checked: false,
+                        groupId: null,
+                        image: ''
+                    });
+                    this.save();
+                    input.value = '';
+                }
+            }
+
+            toggleCheck(itemId) {
+                const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                if (activeList) {
+                    const item = activeList.items.find(i => i.id === itemId);
+                    if (item) {
+                        item.checked = !item.checked;
+                        this.save();
+                    }
+                }
+            }
+
+            deleteItem(itemId) {
+                this.showConfirm('刪除項目', '確定要刪除這個商品嗎？', () => {
+                    const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                    if (activeList) {
+                        activeList.items = activeList.items.filter(i => i.id !== itemId);
+                        this.save();
+                        this.closeDialog();
+                    }
+                });
+            }
+
+            addListOrFolder(type) {
+                const title = type === 'folder' ? '新資料夾' : '新清單';
+                this.showPrompt(`新增${title}`, `請輸入${title}名稱`, (val) => {
+                    if (!val) return;
+                    const newItem = {
+                        id: generateId(),
+                        type: type,
+                        title: val,
+                        ...(type === 'folder' ? { isOpen: true, children: [] } : { items: [], groups: [] })
+                    };
+                    this.state.structure.push(newItem);
+                    if(type === 'list') this.state.activeListId = newItem.id;
+                    this.save();
+                    this.closeDialog();
+                });
+            }
+            
+            deleteNode(id, e) {
+                e.stopPropagation();
+                this.showConfirm('刪除', '確定要刪除此項目嗎？', () => {
+                    const deleteRecursive = (nodes) => {
+                        return nodes.filter(n => {
+                            if (n.id === id) return false;
+                            if (n.children) n.children = deleteRecursive(n.children);
+                            return true;
+                        });
+                    };
+                    this.state.structure = deleteRecursive(this.state.structure);
+                    if(this.state.activeListId === id) this.state.activeListId = null;
+                    this.save();
+                    this.closeDialog();
+                });
+            }
+
+            // --- AI Features ---
+
+            async callGemini(prompt) {
+                document.getElementById('loading-overlay').classList.remove('hidden');
+                try {
+                    const response = await fetch(
+                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: prompt }] }],
+                                generationConfig: { responseMimeType: "application/json" }
+                            })
+                        }
+                    );
+
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!text) throw new Error("Empty response");
+
+                    // Clean Code block if present
+                    let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const start = cleanText.indexOf('{');
+                    const end = cleanText.lastIndexOf('}');
+                    if (start !== -1 && end !== -1) cleanText = cleanText.substring(start, end + 1);
+
+                    return JSON.parse(cleanText);
+                } catch (error) {
+                    console.error(error);
+                    this.showAlert('AI Error', '無法連線到 Gemini API，請檢查 Key 是否正確。');
+                    return null;
+                } finally {
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                }
+            }
+
+            async smartFill(itemId) {
+                const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                const item = activeList.items.find(i => i.id === itemId);
+                if (!item) return;
+
+                const prompt = `
+                    Item: "${item.name}".
+                    Role: Shopping Assistant (Taiwan Context).
+                    Return JSON: { 
+                        "price": number (TWD estimate), 
+                        "note": string (short tips in Traditional Chinese), 
+                        "ingredients": string (ingredients/nutrition), 
+                        "locations": ["Shop1", "Shop2"],
+                        "image_keyword": "English keyword" 
+                    }
+                `;
+
+                const result = await this.callGemini(prompt);
+                if (result) {
+                    item.price = result.price || item.price;
+                    item.note = result.note || item.note;
+                    item.ingredients = result.ingredients || item.ingredients;
+                    item.locations = result.locations || item.locations;
+                    item.image = `https://loremflickr.com/300/300/${encodeURIComponent(result.image_keyword || 'product')}?random=${Date.now()}`;
+                    this.save();
+                }
+            }
+
+            async askAdvisor() {
+                this.showPrompt('購物顧問', '你想買什麼？(例如：去野餐要買什麼？)', async (val) => {
+                    if (!val) return;
+                    this.closeDialog();
+                    const prompt = `Role: Shopping Advisor. Query: "${val}". Return JSON: { "recommendations": [{ "name": "Name", "reason": "Why", "price": 100, "shops": ["Shop"], "image_keyword": "keyword" }] }`;
+                    const result = await this.callGemini(prompt);
                     
-                    <div class="flex flex-wrap gap-1.5">
-                        ${allergens.map(t => `<div class="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ${t.bg} ${t.color}">${t.emoji} ${t.label}</div>`).join('')}
-                    </div>
-
-                    ${item.note ? `<p class="text-xs text-slate-500 break-all bg-slate-50 px-2.5 py-1 rounded-xl font-medium inline-block w-fit">${item.note}</p>` : ''}
-                </div>
-                
-                ${!isGrid ? `
-                <div class="flex flex-col gap-1.5 md:opacity-0 group-hover:opacity-100 transition-opacity absolute right-3 bottom-3 md:static md:bg-transparent md:flex-row md:self-center bg-white/90 p-1 rounded-xl shadow-sm md:shadow-none">
-                     <button onclick="event.stopPropagation(); deleteItem('${item.id}')" class="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-50 rounded-full transition-colors">${renderIcon('trash-2', 18)}</button>
-                </div>` : ''}
-            </div>
-            `;
-        }
-
-        function renderEditorModal() {
-            if (!state.modals.editor || !state.editingItem) return '';
-            const item = state.editingItem;
-            
-            // Helper to update temp state
-            window.updateEditField = (field, value) => { state.editingItem[field] = value; };
-
-            return `
-            <div class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex justify-end">
-                <div class="w-full max-w-md bg-[#FFF9F5] h-full shadow-2xl flex flex-col border-l-4 border-white animate-fade-in">
-                    <div class="p-5 border-b border-blue-50 flex items-center justify-between bg-white z-10">
-                        <h3 class="text-base font-bold text-slate-700 flex items-center gap-2">
-                            <span class="bg-blue-100 p-2 rounded-xl text-blue-500">${renderIcon('edit-3', 20)}</span> 編輯好物
-                        </h3>
-                        <div class="flex items-center gap-2">
-                            <button onclick="saveEditedItem()" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-full font-bold shadow-md transition-all text-sm flex items-center gap-1">${renderIcon('check', 16)} 儲存</button>
-                            <button onclick="state.modals.editor = false; render()" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">${renderIcon('x', 24)}</button>
-                        </div>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                        <div class="space-y-3">
-                            <label class="text-xs font-bold text-slate-400 uppercase ml-1">商品名稱</label>
-                            <input type="text" value="${item.name}" oninput="updateEditField('name', this.value)" class="w-full p-4 bg-white border-2 border-transparent focus:border-blue-200 rounded-2xl focus:outline-none shadow-sm text-slate-700 font-bold text-lg" placeholder="名稱...">
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-2">
-                                <label class="text-xs font-bold text-slate-400 uppercase ml-1">價格</label>
-                                <input type="number" value="${item.price}" oninput="updateEditField('price', this.value)" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm text-slate-700 font-bold focus:ring-2 focus:ring-blue-100 text-lg">
-                            </div>
-                             <div class="space-y-2">
-                                <label class="text-xs font-bold text-slate-400 uppercase ml-1">貨幣</label>
-                                <select onchange="updateEditField('currency', this.value)" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm font-medium text-lg">
-                                    ${CURRENCIES.map(c => `<option value="${c}" ${c === item.currency ? 'selected' : ''}>${c}</option>`).join('')}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-xs font-bold text-slate-400 uppercase ml-1">個人備註</label>
-                            <textarea oninput="updateEditField('note', this.value)" rows="3" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm resize-none text-slate-600 leading-relaxed focus:ring-2 focus:ring-blue-100 text-base">${item.note}</textarea>
-                        </div>
-                        <div class="space-y-2">
-                             <label class="text-xs font-bold text-slate-400 uppercase ml-1">圖片連結</label>
-                             <input type="text" value="${item.image}" oninput="updateEditField('image', this.value)" class="w-full p-4 bg-white border-0 rounded-2xl shadow-sm text-sm" placeholder="https://...">
-                             ${item.image ? `<img src="${item.image}" class="w-full h-40 object-cover rounded-2xl mt-2">` : ''}
-                        </div>
-                        <div class="h-12"></div>
-                    </div>
-                </div>
-            </div>`;
-        }
-
-        // --- Main Render Function ---
-        function render() {
-            const app = document.getElementById('app');
-            
-            // 1. Sidebar
-            const sidebarHtml = `
-            <aside class="absolute md:relative z-30 h-full bg-white w-72 flex flex-col transition-transform duration-300 ease-in-out shadow-[4px_0_40px_-10px_rgba(219,234,254,0.6)] ${state.sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-72'}">
-                <div class="p-8 pb-4 flex items-center gap-3">
-                    <div class="w-12 h-12 bg-blue-100 rounded-[20px] -rotate-6 flex items-center justify-center text-blue-500 shadow-inner">${renderIcon('shopping-bag', 24)}</div>
-                    <h1 class="text-xl font-black text-slate-700 tracking-wider">BlueBuy</h1>
-                </div>
-                <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar relative">
-                    ${state.sidebarTab === 'lists' ? `
-                        <div class="flex justify-between items-center mb-2 px-2">
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">我的清單</span>
-                            <button onclick="addFolderPrompt()" class="p-1.5 text-blue-400 hover:bg-blue-50 rounded-full transition-colors">${renderIcon('plus', 14)}</button>
-                        </div>
-                        ${state.structure.map(node => renderSidebarItem(node)).join('')}
-                    ` : `
-                        <div class="space-y-4 px-2 animate-fade-in">
-                           <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">AI 智慧工具</div>
-                           <button onclick="state.modals.restaurant = true; render()" class="flex flex-col items-center justify-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-500 py-4 rounded-3xl transition-all active:scale-95 border-2 border-orange-100 w-full">
-                               ${renderIcon('utensils', 20)} <span class="text-xs font-bold">餐廳探查</span>
-                           </button>
-                           <p class="text-xs text-center text-slate-400">更多功能開發中...</p>
-                        </div>
-                    `}
-                </div>
-                <div class="p-4 border-t border-slate-100 bg-white">
-                    <div class="flex bg-slate-100 p-1 rounded-2xl">
-                        <button onclick="state.sidebarTab = 'lists'; render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'lists' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${renderIcon('menu', 16)} 清單</button>
-                        <button onclick="state.sidebarTab = 'tools'; render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${state.sidebarTab === 'tools' ? 'bg-white text-blue-500 shadow-sm' : 'text-slate-400'}">${renderIcon('grid-2x2', 16)} 工具</button>
-                    </div>
-                </div>
-            </aside>`;
-
-            // 2. Main Content
-            const activeList = findList(state.structure, state.selectedListId);
-            
-            const mainHtml = `
-            <main class="flex-1 flex flex-col h-full relative w-full bg-[#FFF9F5]">
-                <header class="h-24 flex items-center px-6 md:px-8 justify-between sticky top-0 z-10 bg-[#FFF9F5]/90 backdrop-blur-md">
-                     <div class="flex items-center gap-5 flex-1 min-w-0">
-                        <button onclick="state.sidebarOpen = !state.sidebarOpen; render()" class="md:hidden p-3 -ml-2 text-slate-400 hover:bg-white rounded-2xl transition-colors">${renderIcon('menu', 24)}</button>
-                        <div class="flex flex-col min-w-[5rem]"><h2 class="text-2xl font-black text-slate-700 truncate tracking-tight">${activeList ? activeList.title : '選擇清單'}</h2></div>
-                        ${activeList ? `<span class="bg-white text-blue-400 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex-shrink-0 border-2 border-white ring-2 ring-blue-50">${activeList.items.length}</span>` : ''}
-                    </div>
-                     <div class="flex items-center gap-3">
-                         <div class="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full transition-colors ${state.isSaving ? 'text-blue-400 bg-blue-50' : 'text-slate-300'}">
-                            ${state.isSaving ? `${renderIcon('loader-2', 12, 'animate-spin')} 儲存中` : `${renderIcon('cloud', 12)} 已儲存`}
-                         </div>
-                         <button onclick="state.viewMode = state.viewMode === 'list' ? 'grid' : 'list'; render()" class="p-3 rounded-2xl hover:bg-white text-slate-500 transition-colors shadow-sm border border-transparent hover:border-slate-100">${state.viewMode === 'list' ? renderIcon('layout-grid', 20) : renderIcon('align-justify', 20)}</button>
-                     </div>
-                </header>
-
-                <div class="flex-1 overflow-y-auto px-6 md:px-8 pb-10 scroll-smooth">
-                    ${!activeList ? `
-                        <div class="h-full flex flex-col items-center justify-center text-slate-300 gap-8 opacity-60">
-                            <div class="w-48 h-48 bg-white rounded-[3rem] flex items-center justify-center shadow-[0_20px_50px_-10px_rgba(203,213,225,0.5)]">${renderIcon('shopping-bag', 80, 'text-blue-100')}</div>
-                            <p class="text-xl tracking-widest font-bold">請選擇清單開始購物 🛒</p>
-                        </div>
-                    ` : `
-                        <div class="max-w-4xl mx-auto space-y-10">
-                             <form onsubmit="addItem(event)" class="relative group">
-                                <div class="absolute inset-y-0 left-7 flex items-center pointer-events-none">${renderIcon('plus', 26, 'text-blue-300')}</div>
-                                <input type="text" id="mainInput" placeholder="想要買什麼呢..." autocomplete="off" class="w-full py-6 md:py-7 bg-white rounded-[2.5rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg md:text-xl placeholder:text-slate-300 text-slate-600 font-bold pl-16 md:pl-20 pr-24">
-                                <button type="submit" class="absolute right-3 top-3 bottom-3 px-6 md:px-8 bg-blue-400 hover:bg-blue-500 text-white rounded-[2rem] font-bold transition-all active:scale-95 shadow-lg shadow-blue-200 text-lg">加入</button>
-                             </form>
-
-                             <div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-5'} pb-20">
-                                 ${activeList.items.length === 0 ? '<div class="text-center py-20 text-slate-300 font-medium tracking-wide">清單空空的，加點東西吧！ ✨</div>' : ''}
-                                 ${activeList.items.map(item => renderItemCard(item)).join('')}
-                             </div>
-                        </div>
-                    `}
-                </div>
-            </main>
-            `;
-
-            // 3. Modals Overlay
-            const modalOverlays = `
-                ${state.sidebarOpen ? `<div class="fixed inset-0 bg-slate-400/20 z-20 md:hidden backdrop-blur-sm" onclick="state.sidebarOpen = false; render()"></div>` : ''}
-                
-                ${state.modals.dialog.isOpen ? `
-                <div class="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
-                    <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-6 border-4 border-white/50 animate-fade-in">
-                        <div class="flex flex-col items-center text-center gap-3 mb-5">
-                            <div class="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center">${renderIcon(state.modals.dialog.type === 'confirm' ? 'alert-triangle' : 'edit-3', 28)}</div>
-                            <h3 class="text-base font-bold text-slate-700">${state.modals.dialog.title}</h3>
-                        </div>
-                        <p class="text-slate-600 mb-6 text-center font-medium text-sm leading-relaxed">${state.modals.dialog.message}</p>
-                        ${state.modals.dialog.type === 'prompt' ? `<input id="dialogInput" type="text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 focus:ring-2 focus:ring-blue-400 text-slate-700 text-center outline-none font-bold" placeholder="輸入...">` : ''}
-                        <div class="flex justify-center gap-3">
-                            <button onclick="closeDialog()" class="flex-1 py-3 text-slate-500 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-sm">取消</button>
-                            <button onclick="handleDialogConfirm()" class="flex-1 py-3 text-white rounded-2xl font-bold shadow-md ${state.modals.dialog.type === 'confirm' ? 'bg-rose-500' : 'bg-blue-500'}">確認</button>
-                        </div>
-                    </div>
-                </div>` : ''}
-
-                ${state.modals.restaurant ? `
-                <div class="fixed inset-0 bg-slate-500/40 z-[60] flex items-center justify-center p-4">
-                    <div class="bg-[#FFF9F5] rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[85vh] flex flex-col overflow-hidden border-4 border-white animate-fade-in">
-                         <div class="p-6 bg-white/80 border-b border-orange-50 flex-shrink-0 flex justify-between items-center">
-                            <h3 class="text-base font-bold flex items-center gap-2 text-slate-700">${renderIcon('utensils', 24, 'text-orange-400')} 餐廳探查</h3>
-                            <button onclick="state.modals.restaurant=false; render()" class="bg-slate-100 p-2 rounded-full text-slate-400">${renderIcon('x', 20)}</button>
-                         </div>
-                         <div class="flex-1 overflow-y-auto p-6 bg-[#FDFBF7] space-y-6 custom-scrollbar">
-                            ${state.isProcessingAI ? `<div class="flex flex-col items-center justify-center h-full text-orange-400 gap-4">${renderIcon('loader-2', 40, 'animate-spin')}<p>AI 分析中...</p></div>` : 
-                              state.aiResults ? `
-                                <div class="bg-white p-5 rounded-3xl shadow-sm border border-orange-100">
-                                    <h2 class="text-xl font-bold text-slate-800 mb-2">${state.aiResults.name}</h2>
-                                    <div class="p-3 bg-slate-50 rounded-2xl text-sm text-slate-600 mb-4">${state.aiResults.summary}</div>
-                                    <button onclick="addAiItem(${JSON.stringify(state.aiResults).replace(/"/g, '&quot;')})" class="w-full py-3 bg-orange-400 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">${renderIcon('plus', 18)} 加入清單</button>
-                                </div>
-                              ` : 
-                              `<div class="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
-                                <div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center shadow-sm">${renderIcon('map-pin', 32, 'text-orange-400')}</div>
-                                <p class="text-center font-medium text-sm">輸入餐廳名稱，<br/>AI 幫你分析評價！</p>
-                              </div>`}
-                         </div>
-                         <div class="p-5 bg-white border-t border-orange-50 flex gap-3 flex-shrink-0">
-                            <input id="restaurantInput" type="text" placeholder="輸入餐廳名稱..." class="flex-1 p-4 bg-slate-50 border-0 rounded-full focus:ring-4 focus:ring-orange-100 text-slate-600 font-bold outline-none">
-                            <button onclick="runRestaurantSearch()" class="w-14 h-14 bg-orange-400 hover:bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center">${renderIcon('search', 24)}</button>
-                         </div>
-                    </div>
-                </div>
-                ` : ''}
-
-                ${renderEditorModal()}
-            `;
-
-            app.innerHTML = sidebarHtml + mainHtml + modalOverlays;
-            lucide.createIcons();
-        }
-
-        // --- Interaction Handlers ---
-        
-        window.saveApiKey = () => {
-            const val = document.getElementById('apiKeyInput').value.trim();
-            if (val) {
-                state.apiKey = val;
-                localStorage.setItem('bluebuy_apiKey', val);
-                document.getElementById('apiKeyModal').classList.add('hidden');
-            }
-        };
-
-        window.addFolderPrompt = () => {
-            openDialog('prompt', '新增資料夾', '請輸入資料夾名稱：', (val) => {
-                if(!val) return;
-                const newFolder = { id: generateId(), type: 'folder', title: val, isOpen: true, children: [] };
-                state.structure.push(newFolder);
-                saveToStorage();
-            });
-        };
-
-        window.addListPrompt = (parentId) => {
-            openDialog('prompt', '新增清單', '請輸入清單名稱：', (val) => {
-                if(!val) return;
-                const newList = { id: generateId(), type: 'list', title: val, items: [], groups: [] };
-                const addDeep = (nodes) => nodes.map(n => {
-                    if (n.id === parentId) return { ...n, children: [...(n.children || []), newList] };
-                    if (n.children) return { ...n, children: addDeep(n.children) };
-                    return n;
+                    if (result && result.recommendations) {
+                        const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                        if (!activeList) {
+                            this.showAlert('錯誤', '請先選擇一個清單');
+                            return;
+                        }
+                        
+                        result.recommendations.forEach(rec => {
+                            activeList.items.unshift({
+                                id: generateId(),
+                                name: rec.name,
+                                price: rec.price,
+                                currency: 'TWD',
+                                note: rec.reason,
+                                ingredients: '',
+                                locations: rec.shops,
+                                image: `https://loremflickr.com/300/300/${encodeURIComponent(rec.image_keyword)}?random=${Date.now()}`,
+                                checked: false,
+                                groupId: null
+                            });
+                        });
+                        this.save();
+                        this.showAlert('完成', `已為您加入 ${result.recommendations.length} 個建議項目！`);
+                    }
                 });
-                state.structure = addDeep(state.structure);
-                state.selectedListId = newList.id; // Switch to new list
-                saveToStorage();
-            });
-        };
-        
-        window.addAiItem = (data) => {
-            // Logic to add item from AI tool
-            // Needs to select a list first if none selected, but simpler to just use current
-            if (!state.selectedListId) {
-                openDialog('alert', '請先選擇清單', '請在背景選擇一個清單後再加入。');
-                return;
             }
-            const newItem = {
-                id: generateId(),
-                name: data.name,
-                price: 0,
-                currency: 'TWD',
-                note: data.summary,
-                ingredients: '',
-                locations: [data.address || ''],
-                image: `https://loremflickr.com/300/300/${encodeURIComponent(data.image_keyword || 'food')}?random=${Date.now()}`,
-                checked: false,
-                groupId: null
-            };
-            
-            const addDeep = (nodes) => nodes.map(n => {
-                if (n.id === state.selectedListId) return { ...n, items: [newItem, ...n.items] };
-                if (n.children) return { ...n, children: addDeep(n.children) };
-                return n;
-            });
-            state.structure = addDeep(state.structure);
-            state.modals.restaurant = false;
-            state.aiResults = null;
-            saveToStorage();
-            openDialog('alert', '成功', `已加入「${data.name}」`);
-        };
+
+            // --- Rendering ---
+
+            render() {
+                this.renderSidebar();
+                this.renderMainContent();
+                lucide.createIcons();
+            }
+
+            renderSidebar() {
+                const content = document.getElementById('sidebar-content');
+                const btnTabLists = document.getElementById('tab-lists');
+                const btnTabTools = document.getElementById('tab-tools');
+
+                // Update Tab Styles
+                if (this.state.sidebarTab === 'lists') {
+                    btnTabLists.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all";
+                    btnTabTools.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all";
+                } else {
+                    btnTabTools.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all";
+                    btnTabLists.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all";
+                }
+
+                if (this.state.sidebarTab === 'tools') {
+                    content.innerHTML = `
+                        <div class="space-y-4 animate-fade-in">
+                            <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">AI 智慧工具</div>
+                            <button onclick="app.askAdvisor()" class="w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-400 to-blue-500 text-white py-6 rounded-3xl shadow-lg active:scale-95 transition-transform">
+                                <div class="bg-white/20 p-3 rounded-full"><i data-lucide="lightbulb" class="w-6 h-6 text-yellow-200"></i></div>
+                                <span class="font-bold text-sm tracking-wide">購物顧問</span>
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // Render Lists Tree
+                    let html = `<div class="flex justify-between items-center mb-2 px-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">我的清單</span>
+                        <div class="flex gap-1">
+                            <button onclick="app.addListOrFolder('folder')" class="p-1 text-blue-400 hover:bg-blue-50 rounded-full"><i data-lucide="folder-plus" class="w-4 h-4"></i></button>
+                            <button onclick="app.addListOrFolder('list')" class="p-1 text-blue-400 hover:bg-blue-50 rounded-full"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>`;
+                    
+                    const renderNodes = (nodes, level = 0) => {
+                        return nodes.map(node => {
+                            const paddingLeft = level * 12 + 12;
+                            if (node.type === 'folder') {
+                                return `
+                                    <div class="mb-1">
+                                        <div onclick="app.toggleFolder('${node.id}')" class="flex items-center justify-between py-2 pr-2 cursor-pointer text-slate-600 hover:bg-slate-50 rounded-r-full transition-colors group" style="padding-left: ${paddingLeft}px">
+                                            <div class="flex items-center gap-2 font-bold text-sm">
+                                                <i data-lucide="${node.isOpen ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-blue-300"></i>
+                                                <i data-lucide="folder" class="w-4 h-4 text-blue-400 fill-blue-50"></i>
+                                                <span class="truncate">${node.title}</span>
+                                            </div>
+                                            <button onclick="app.deleteNode('${node.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 text-rose-300 hover:text-rose-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                                        </div>
+                                        ${node.isOpen && node.children ? `<div class="border-l-2 border-dotted border-blue-100 ml-4">${renderNodes(node.children, level + 1)}</div>` : ''}
+                                    </div>
+                                `;
+                            } else {
+                                const isActive = this.state.activeListId === node.id;
+                                return `
+                                    <div onclick="app.selectList('${node.id}')" class="mb-1 py-2 pr-2 cursor-pointer rounded-r-full transition-all group flex justify-between items-center ${isActive ? 'bg-blue-100 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}" style="padding-left: ${paddingLeft}px">
+                                        <div class="flex items-center gap-2 text-sm font-bold">
+                                            <div class="w-2 h-2 rounded-full ${isActive ? 'bg-blue-500' : 'bg-slate-300'}"></div>
+                                            <span class="truncate">${node.title}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                             <span class="text-[10px] px-2 rounded-full ${isActive ? 'bg-white text-blue-500' : 'bg-slate-200 text-slate-500'}">${node.items.length}</span>
+                                             <button onclick="app.deleteNode('${node.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 text-rose-300 hover:text-rose-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }).join('');
+                    };
+                    content.innerHTML = html + renderNodes(this.state.structure);
+                }
+            }
+
+            renderMainContent() {
+                const activeList = this.findNode(this.state.structure, this.state.activeListId);
+                const titleEl = document.getElementById('header-title');
+                const countEl = document.getElementById('header-count');
+                const container = document.getElementById('list-container');
+
+                if (!activeList) {
+                    titleEl.innerText = "請選擇清單";
+                    countEl.classList.add('hidden');
+                    container.innerHTML = `<div class="flex flex-col items-center justify-center pt-20 text-slate-300 gap-4"><i data-lucide="shopping-bag" class="w-20 h-20 text-blue-100"></i><p>左側選擇清單開始購物</p></div>`;
+                    return;
+                }
+
+                titleEl.innerText = activeList.title;
+                countEl.innerText = activeList.items.length;
+                countEl.classList.remove('hidden');
+
+                if (activeList.items.length === 0) {
+                    container.innerHTML = `<div class="text-center py-20 text-slate-300 font-bold">清單空空的，加點東西吧！✨</div>`;
+                    return;
+                }
+
+                container.className = this.state.viewMode === 'grid' ? "grid grid-cols-2 gap-3 pb-10" : "space-y-4 pb-10";
+
+                container.innerHTML = activeList.items.map(item => {
+                    // Logic to detect allergens tags
+                    const tags = [];
+                    const txt = (item.name + item.ingredients).toLowerCase();
+                    if(txt.match(/辣|spice/)) tags.push({t:'辛辣', c:'bg-red-50 text-red-500'});
+                    if(txt.match(/奶|milk/)) tags.push({t:'乳製品', c:'bg-blue-50 text-blue-500'});
+
+                    if (this.state.viewMode === 'grid') {
+                        return `
+                            <div class="bg-white p-3 rounded-[20px] shadow-sm border border-slate-100 flex flex-col h-full ${item.checked ? 'opacity-50 grayscale' : ''}">
+                                <div class="relative w-full aspect-square bg-slate-100 rounded-2xl mb-2 overflow-hidden">
+                                    ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-8 h-8"></i></div>`}
+                                    <button onclick="app.toggleCheck('${item.id}')" class="absolute top-2 right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md ${item.checked ? 'text-blue-500' : 'text-slate-300'}">
+                                        <i data-lucide="check" class="w-4 h-4 font-bold"></i>
+                                    </button>
+                                </div>
+                                <h3 class="font-bold text-slate-700 text-sm mb-1 leading-tight ${item.checked ? 'line-through' : ''}">${item.name}</h3>
+                                ${item.price ? `<div class="text-xs font-bold text-blue-500">NT$${item.price}</div>` : ''}
+                                <div class="mt-auto pt-2 flex justify-end gap-1">
+                                    <button onclick="app.smartFill('${item.id}')" class="p-1.5 bg-purple-50 text-purple-400 rounded-full"><i data-lucide="wand-2" class="w-3 h-3"></i></button>
+                                    <button onclick="app.deleteItem('${item.id}')" class="p-1.5 bg-rose-50 text-rose-400 rounded-full"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                        <div class="bg-white p-4 rounded-[24px] shadow-[0_4px_20px_-5px_rgba(224,231,255,0.6)] flex gap-4 items-start relative group transition-all ${item.checked ? 'opacity-50 bg-slate-50 shadow-none' : 'hover:-translate-y-1'}">
+                            <button onclick="app.toggleCheck('${item.id}')" class="flex-shrink-0 w-6 h-6 rounded-full border-2 mt-1 flex items-center justify-center transition-all ${item.checked ? 'bg-blue-400 border-blue-400 text-white' : 'border-slate-200 text-transparent hover:border-blue-300'}">
+                                <i data-lucide="check" class="w-3 h-3 stroke-[4]"></i>
+                            </button>
+                            <div class="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
+                                ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-5 h-5"></i></div>`}
+                            </div>
+                            <div class="flex-1 min-w-0 py-0.5">
+                                <div class="flex justify-between items-start">
+                                    <h3 class="font-bold text-base text-slate-700 leading-snug ${item.checked ? 'line-through text-slate-400' : ''}">${item.name}</h3>
+                                    ${item.price ? `<span class="bg-blue-50 text-blue-500 text-xs font-bold px-2 py-1 rounded-lg">NT$${item.price}</span>` : ''}
+                                </div>
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    ${tags.map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded ${t.c}">${t.t}</span>`).join('')}
+                                </div>
+                                ${item.note ? `<p class="text-xs text-slate-500 mt-1 bg-slate-50 inline-block px-2 py-0.5 rounded-lg max-w-full truncate">${item.note}</p>` : ''}
+                                
+                                <div class="flex gap-2 mt-2">
+                                     <button onclick="app.smartFill('${item.id}')" class="flex items-center gap-1 text-[10px] bg-purple-50 text-purple-500 px-2 py-1 rounded-full font-bold hover:bg-purple-100 transition-colors">
+                                        <i data-lucide="sparkles" class="w-3 h-3"></i> AI 補全
+                                     </button>
+                                     ${item.locations && item.locations.length ? `<span class="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-500 px-2 py-1 rounded-full font-bold"><i data-lucide="map-pin" class="w-3 h-3"></i> ${item.locations[0]}</span>` : ''}
+                                </div>
+                            </div>
+                            <button onclick="app.deleteItem('${item.id}')" class="absolute bottom-3 right-3 text-slate-300 hover:text-rose-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                        `;
+                    }
+                }).join('');
+            }
+
+            // --- Dialog Helpers ---
+            closeDialog() {
+                const d = document.getElementById('dialog-modal');
+                d.classList.add('hidden');
+                d.querySelector('#dialog-confirm').onclick = null;
+            }
+
+            showAlert(title, msg) {
+                const d = document.getElementById('dialog-modal');
+                d.querySelector('#dialog-title').innerText = title;
+                d.querySelector('#dialog-message').innerText = msg;
+                d.querySelector('#dialog-input-container').classList.add('hidden');
+                d.querySelector('#dialog-confirm').innerText = "OK";
+                d.querySelector('#dialog-confirm').onclick = () => this.closeDialog();
+                d.querySelector('#dialog-cancel').classList.add('hidden');
+                d.classList.remove('hidden');
+            }
+
+            showConfirm(title, msg, onConfirm) {
+                const d = document.getElementById('dialog-modal');
+                d.querySelector('#dialog-title').innerText = title;
+                d.querySelector('#dialog-message').innerText = msg;
+                d.querySelector('#dialog-input-container').classList.add('hidden');
+                d.querySelector('#dialog-confirm').innerText = "確認";
+                d.querySelector('#dialog-confirm').onclick = onConfirm;
+                d.querySelector('#dialog-cancel').classList.remove('hidden');
+                d.classList.remove('hidden');
+            }
+
+            showPrompt(title, msg, onConfirm) {
+                const d = document.getElementById('dialog-modal');
+                const inp = d.querySelector('#dialog-input');
+                d.querySelector('#dialog-title').innerText = title;
+                d.querySelector('#dialog-message').innerText = msg;
+                d.querySelector('#dialog-input-container').classList.remove('hidden');
+                inp.value = '';
+                d.querySelector('#dialog-confirm').innerText = "確認";
+                d.querySelector('#dialog-confirm').onclick = () => onConfirm(inp.value);
+                d.querySelector('#dialog-cancel').classList.remove('hidden');
+                d.classList.remove('hidden');
+                setTimeout(() => inp.focus(), 100);
+            }
+        }
 
         // Initialize
-        if (!state.apiKey) {
-            document.getElementById('apiKeyModal').classList.remove('hidden');
-        }
-        
-        // Auto select first list if none
-        if (!state.selectedListId) {
-           const firstList = findList(state.structure, 'list-1'); // naive check
-           if(state.structure[0]?.children?.[0]?.id) state.selectedListId = state.structure[0].children[0].id;
-        }
-
-        render();
+        const app = new ShoppingApp();
 
     </script>
 </body>
