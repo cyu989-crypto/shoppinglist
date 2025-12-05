@@ -2,49 +2,43 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueBuy AI Shopping List</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-
     <style>
+        /* 基礎設定與滾動條美化 */
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f1f5f9; /* Slate-100 outside */
-            overflow: hidden; /* Prevent body scroll, handle in app */
-            margin: 0;
-            height: 100vh;
+            background-color: #1e293b; /* 深色背景襯托手機框 */
+            font-family: system-ui, -apple-system, sans-serif;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
         }
 
-        /* 手機尺寸模擬容器 */
-        #mobile-frame {
+        /* 手機外框模擬 */
+        #mobile-container {
             width: 100%;
-            height: 100%;
+            max-width: 430px; /* 模擬 iPhone Pro Max 寬度 */
+            height: 90vh;
+            max-height: 932px;
             background-color: #FFF9F5;
-            position: relative;
+            border-radius: 40px;
             overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: column;
+            border: 8px solid #0f172a;
         }
 
-        @media (min-width: 768px) {
-            #mobile-frame {
-                width: 414px; /* iPhone Max width approximate */
-                height: 850px;
-                border-radius: 40px;
-                border: 8px solid #fff;
-            }
-        }
-
-        /* Custom Scrollbar */
+        /* 自訂滾動條 */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
         }
@@ -52,359 +46,453 @@
             background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: rgba(203, 213, 225, 0.5);
+            background-color: #cbd5e1;
             border-radius: 20px;
         }
 
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-out;
-        }
+        /* 動畫 */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .loading-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
 
-        /* Hide elements helper */
+        /* 工具類 */
         .hidden { display: none !important; }
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(2px);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
 
-    <div id="mobile-frame">
+    <div id="mobile-container">
         
-        <aside id="sidebar" class="absolute inset-y-0 left-0 z-30 w-64 bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col h-full">
-            <div class="p-6 pb-4 flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-100 rounded-xl -rotate-6 flex items-center justify-center text-blue-500">
-                    <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+        <div id="api-key-modal" class="overlay" style="z-index: 100; background: rgba(0,0,0,0.8);">
+            <div class="bg-white p-6 rounded-3xl w-4/5 shadow-2xl text-center">
+                <div class="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="key"></i>
                 </div>
-                <h1 class="text-xl font-black text-slate-700 tracking-wider">BlueBuy</h1>
+                <h2 class="text-xl font-bold text-slate-800 mb-2">請輸入 API Key</h2>
+                <p class="text-sm text-slate-500 mb-4">為了使用 AI 功能，請輸入您的 Gemini API Key。</p>
+                <input type="password" id="api-key-input" placeholder="貼上 API Key..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center focus:ring-2 focus:ring-blue-400 outline-none">
+                <button onclick="App.setApiKey()" class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-colors">開始使用</button>
+            </div>
+        </div>
+
+        <aside id="sidebar" class="absolute inset-y-0 left-0 w-64 bg-white z-40 transform -translate-x-full transition-transform duration-300 shadow-xl flex flex-col">
+            <div class="p-6 flex items-center gap-3 border-b border-slate-50">
+                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-500">
+                    <i data-lucide="shopping-bag"></i>
+                </div>
+                <h1 class="text-lg font-black text-slate-700 tracking-wider">BlueBuy</h1>
             </div>
             
-            <div id="sidebar-content" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar" id="sidebar-content">
                 </div>
 
             <div class="p-4 border-t border-slate-100">
-                <div class="flex bg-slate-100 p-1 rounded-2xl">
-                    <button onclick="app.setTab('lists')" id="tab-lists" class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all">
-                        <i data-lucide="menu" class="w-4 h-4"></i> 清單
-                    </button>
-                    <button onclick="app.setTab('tools')" id="tab-tools" class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all">
-                        <i data-lucide="grid-2x2" class="w-4 h-4"></i> 工具
-                    </button>
-                </div>
+                <button onclick="App.createNewList()" class="w-full py-3 border-2 border-dashed border-slate-200 text-slate-400 rounded-xl font-bold hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="plus" size="16"></i> 新增清單
+                </button>
             </div>
         </aside>
 
-        <div id="sidebar-overlay" onclick="app.toggleSidebar(false)" class="absolute inset-0 bg-black/20 z-20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+        <div id="sidebar-overlay" onclick="App.toggleSidebar()" class="overlay hidden" style="z-index: 30;"></div>
 
-        <header class="h-20 flex items-center px-6 justify-between flex-shrink-0 bg-[#FFF9F5]/90 backdrop-blur-md z-10 sticky top-0">
-            <div class="flex items-center gap-4 flex-1 min-w-0">
-                <button onclick="app.toggleSidebar(true)" class="p-2 -ml-2 text-slate-400 hover:bg-white rounded-xl transition-colors">
-                    <i data-lucide="list" class="w-6 h-6"></i>
-                </button>
-                <div class="flex flex-col">
-                    <h2 id="header-title" class="text-xl font-black text-slate-700 truncate">載入中...</h2>
+        <main class="flex-1 flex flex-col h-full relative w-full bg-[#FFF9F5]">
+            <header class="h-20 flex items-center px-6 justify-between sticky top-0 z-20 bg-[#FFF9F5]/90 backdrop-blur-md">
+                <div class="flex items-center gap-4">
+                    <button onclick="App.toggleSidebar()" class="p-2 -ml-2 text-slate-400 hover:bg-white rounded-xl transition-colors">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <div>
+                        <h2 id="current-list-title" class="text-xl font-black text-slate-700 truncate max-w-[150px]">載入中...</h2>
+                    </div>
                 </div>
-                <span id="header-count" class="hidden bg-white text-blue-400 text-xs font-bold px-2 py-1 rounded-full shadow-sm border-2 border-white ring-1 ring-blue-50">0</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="App.openAITools()" class="p-2.5 rounded-xl bg-white text-purple-500 shadow-sm border border-purple-100" title="AI 工具">
+                        <i data-lucide="sparkles"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div id="main-content" class="flex-1 overflow-y-auto px-6 pb-24 scroll-smooth custom-scrollbar">
+                <div class="relative group mb-6 mt-2">
+                    <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none text-blue-300">
+                        <i data-lucide="plus"></i>
+                    </div>
+                    <input type="text" id="new-item-input" 
+                           onkeydown="if(event.key === 'Enter') App.addItem()"
+                           placeholder="想要買什麼呢..." 
+                           class="w-full pl-14 pr-4 py-5 bg-white rounded-[2rem] shadow-lg shadow-blue-100/50 focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all text-lg placeholder:text-slate-300 text-slate-600 font-bold">
+                </div>
+
+                <div id="items-container" class="space-y-4">
+                    </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="app.toggleViewMode()" class="p-2 rounded-xl hover:bg-white text-slate-500 transition-colors">
-                    <i id="view-mode-icon" data-lucide="layout-grid" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </header>
-
-        <main class="flex-1 overflow-y-auto px-6 pb-24 scroll-smooth custom-scrollbar relative" id="main-scroll">
-            
-            <form onsubmit="app.handleAddItem(event)" class="relative group mb-8 mt-2 sticky top-2 z-10">
-                <div class="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                    <i data-lucide="plus" class="w-6 h-6 text-blue-300"></i>
-                </div>
-                <input type="text" id="new-item-input" placeholder="想要買什麼呢..." 
-                    class="w-full pl-14 pr-24 py-5 bg-white rounded-[2rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg placeholder:text-slate-300 text-slate-600 font-bold">
-                <button type="submit" class="absolute right-2 top-2 bottom-2 px-6 bg-blue-400 hover:bg-blue-500 text-white rounded-[1.6rem] font-bold transition-transform active:scale-95 shadow-lg shadow-blue-200 text-sm">
-                    加入
-                </button>
-            </form>
-
-            <div id="list-container" class="space-y-4 pb-10">
-                </div>
         </main>
 
-        <div id="api-modal" class="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center p-6 animate-fade-in">
-            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm text-center shadow-2xl">
-                <div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl mx-auto flex items-center justify-center text-white mb-6 shadow-lg">
-                    <i data-lucide="key" class="w-8 h-8"></i>
+        <div id="editor-modal" class="absolute inset-0 bg-[#FFF9F5] z-50 transform translate-y-full transition-transform duration-300 flex flex-col">
+            <div class="p-4 border-b border-slate-100 bg-white flex justify-between items-center">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                    <span class="bg-blue-100 p-1.5 rounded-lg text-blue-500"><i data-lucide="edit-3" size="16"></i></span> 編輯
+                </h3>
+                <div class="flex gap-2">
+                    <button onclick="App.saveEdit()" class="bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1 shadow-md hover:bg-blue-600"><i data-lucide="check" size="14"></i> 儲存</button>
+                    <button onclick="App.closeEditor()" class="p-2 text-slate-400 hover:bg-slate-50 rounded-full"><i data-lucide="x"></i></button>
                 </div>
-                <h2 class="text-xl font-bold text-slate-800 mb-2">歡迎使用 BlueBuy</h2>
-                <p class="text-slate-500 text-sm mb-6">請輸入您的 Google Gemini API Key 以啟用 AI 購物顧問與分析功能。</p>
-                <input type="password" id="api-key-input" placeholder="Paste API Key here..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
-                <button onclick="app.submitApiKey()" class="w-full py-4 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg">開始使用</button>
-                <p class="text-[10px] text-slate-300 mt-4">Key 僅暫存於此頁面，重新整理需重新輸入</p>
             </div>
-        </div>
-
-        <div id="dialog-modal" class="absolute inset-0 bg-black/40 z-[90] flex items-center justify-center p-6 hidden">
-            <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-6 border-4 border-white/50">
-                <div class="flex flex-col items-center text-center gap-3 mb-5">
-                    <div id="dialog-icon-container" class="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center">
-                        <i id="dialog-icon" data-lucide="alert-circle" class="w-7 h-7"></i>
+            <div class="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase">商品名稱</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="edit-name" class="flex-1 p-3 bg-white border-0 rounded-xl shadow-sm font-bold text-lg outline-none">
+                        <button onclick="App.smartFill()" id="btn-smart-fill" class="bg-gradient-to-br from-indigo-400 to-purple-400 text-white p-3 rounded-xl shadow-md w-14 flex items-center justify-center">
+                            <i data-lucide="wand-2"></i>
+                        </button>
                     </div>
-                    <h3 id="dialog-title" class="text-base font-bold text-slate-700">標題</h3>
+                    <p class="text-xs text-purple-400 flex items-center gap-1"><i data-lucide="sparkles" size="10"></i> 點擊魔杖 AI 自動填寫</p>
                 </div>
-                <p id="dialog-message" class="text-slate-600 mb-6 text-center font-medium text-sm leading-relaxed">訊息內容</p>
-                <div id="dialog-input-container" class="hidden mb-6">
-                    <input type="text" id="dialog-input" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-400 text-slate-700 text-center outline-none font-bold" placeholder="輸入...">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold text-slate-400 uppercase">價格</label>
+                        <input type="number" id="edit-price" placeholder="0" class="w-full p-3 bg-white rounded-xl shadow-sm font-bold outline-none">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold text-slate-400 uppercase">幣別</label>
+                        <select id="edit-currency" class="w-full p-3 bg-white rounded-xl shadow-sm outline-none font-medium text-slate-600">
+                            <option value="TWD">TWD</option>
+                            <option value="JPY">JPY</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="flex gap-3">
-                    <button id="dialog-cancel" onclick="app.closeDialog()" class="flex-1 py-3 text-slate-400 hover:bg-slate-100 rounded-2xl font-bold transition-colors text-sm">取消</button>
-                    <button id="dialog-confirm" class="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold shadow-md transition-colors text-sm">確認</button>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-amber-500 uppercase flex items-center gap-1"><i data-lucide="utensils" size="12"></i> 成分/備註</label>
+                    <textarea id="edit-ingredients" rows="3" class="w-full p-3 bg-amber-50 border-0 rounded-xl resize-none text-slate-600 text-sm leading-relaxed outline-none" placeholder="AI 會自動填寫成分..."></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-emerald-500 uppercase flex items-center gap-1"><i data-lucide="map-pin" size="12"></i> 購買地點</label>
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" id="new-loc-input" placeholder="新增地點..." class="flex-1 p-2 bg-emerald-50 rounded-lg text-sm outline-none">
+                        <button onclick="App.addLocation()" class="bg-emerald-100 text-emerald-600 p-2 rounded-lg"><i data-lucide="plus" size="16"></i></button>
+                    </div>
+                    <div id="edit-locations" class="flex flex-wrap gap-2"></div>
+                </div>
+                
+                <div class="pt-4 border-t border-slate-100">
+                     <button onclick="App.deleteItem()" class="w-full py-3 text-rose-400 bg-rose-50 rounded-xl font-bold text-sm hover:bg-rose-100">刪除此商品</button>
                 </div>
             </div>
         </div>
 
-        <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-[80] flex flex-col items-center justify-center hidden backdrop-blur-sm">
-            <i data-lucide="loader-2" class="w-10 h-10 text-blue-500 animate-spin mb-4"></i>
-            <p class="text-blue-500 font-bold animate-pulse">AI 正在思考中...</p>
+        <div id="ai-tools-modal" class="overlay hidden" onclick="if(event.target === this) App.closeAITools()">
+            <div class="bg-white rounded-3xl w-4/5 p-6 animate-fade-in shadow-2xl">
+                <h3 class="font-bold text-slate-700 text-lg mb-4 text-center">AI 智慧助手</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="App.openTool('restaurant')" class="flex flex-col items-center justify-center gap-2 bg-orange-50 text-orange-500 py-4 rounded-2xl hover:bg-orange-100 transition-colors">
+                        <i data-lucide="utensils"></i> <span class="text-xs font-bold">餐廳探查</span>
+                    </button>
+                    <button onclick="App.openTool('hotel')" class="flex flex-col items-center justify-center gap-2 bg-purple-50 text-purple-500 py-4 rounded-2xl hover:bg-purple-100 transition-colors">
+                        <i data-lucide="bed"></i> <span class="text-xs font-bold">飯店分析</span>
+                    </button>
+                    <button onclick="App.openTool('advisor')" class="col-span-2 flex flex-col items-center justify-center gap-2 bg-blue-50 text-blue-500 py-4 rounded-2xl hover:bg-blue-100 transition-colors">
+                        <i data-lucide="lightbulb"></i> <span class="text-xs font-bold">購物顧問 (不知道買什麼?)</span>
+                    </button>
+                </div>
+                <button onclick="App.closeAITools()" class="w-full mt-4 py-3 text-slate-400 font-bold text-sm">取消</button>
+            </div>
+        </div>
+
+        <div id="query-modal" class="absolute inset-0 bg-[#FFF9F5] z-50 transform translate-y-full transition-transform duration-300 flex flex-col">
+             <div class="p-4 bg-white border-b border-slate-100 flex justify-between items-center">
+                 <h3 id="query-title" class="font-bold text-slate-700 flex items-center gap-2">AI 查詢</h3>
+                 <button onclick="App.closeQuery()" class="p-2 text-slate-400 bg-slate-50 rounded-full"><i data-lucide="x"></i></button>
+             </div>
+             <div id="query-result" class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                 <div class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 opacity-50">
+                     <i id="query-icon" data-lucide="search" size="48"></i>
+                     <p>請在下方輸入關鍵字...</p>
+                 </div>
+             </div>
+             <div class="p-4 bg-white border-t border-slate-100 flex gap-2">
+                 <input type="text" id="query-input" placeholder="輸入名稱..." class="flex-1 p-3 bg-slate-50 rounded-full outline-none font-bold text-slate-600">
+                 <button onclick="App.runQuery()" id="btn-run-query" class="w-12 h-12 bg-blue-400 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-500">
+                     <i data-lucide="arrow-right"></i>
+                 </button>
+             </div>
         </div>
 
     </div>
 
     <script>
-        // --- Helper: Generate ID ---
-        const generateId = () => Math.random().toString(36).substr(2, 9);
-
-        // --- Initial Data ---
-        const initialData = [
-            {
-                id: 'folder-1', type: 'folder', title: '便利商店 🏪', isOpen: true,
-                children: [
-                    {
-                        id: 'list-1', type: 'list', title: '7-ELEVEN',
-                        groups: [],
+        // --- 應用程式核心邏輯 ---
+        const App = {
+            state: {
+                apiKey: '',
+                lists: [],
+                activeListId: null,
+                editingItem: null,
+                tempLocations: [],
+                currentTool: null // 'restaurant', 'hotel', 'advisor'
+            },
+            
+            // 初始化
+            init() {
+                // 嘗試從 LocalStorage 讀取資料
+                const savedData = localStorage.getItem('bluebuy_data');
+                if (savedData) {
+                    this.state.lists = JSON.parse(savedData);
+                } else {
+                    // 預設資料
+                    this.state.lists = [{ 
+                        id: 'default', title: '我的購物清單', 
                         items: [
-                            {
-                                id: 'item-1', name: '御飯糰', price: 35, currency: 'TWD', note: '鮪魚口味',
-                                ingredients: '白米、鮪魚、海苔', locations: ['7-ELEVEN'], links: [],
-                                image: 'https://loremflickr.com/300/300/onigiri', checked: false, groupId: null
-                            }
-                        ]
-                    }
-                ]
-            }
-        ];
-
-        // --- App Class ---
-        class ShoppingApp {
-            constructor() {
-                this.apiKey = "";
-                this.state = {
-                    structure: [],
-                    activeListId: null,
-                    viewMode: 'list', // 'list' or 'grid'
-                    sidebarTab: 'lists', // 'lists' or 'tools'
-                    isSidebarOpen: false
-                };
-                
-                // Load from LocalStorage
-                const saved = localStorage.getItem('bluebuy_data');
-                if (saved) {
-                    this.state.structure = JSON.parse(saved);
-                } else {
-                    this.state.structure = initialData;
+                            { id: '1', name: '牛奶', price: 95, currency: 'TWD', ingredients: '', locations: ['7-11'], checked: false },
+                            { id: '2', name: '雞蛋', price: 120, currency: 'TWD', ingredients: '', locations: ['全聯'], checked: false }
+                        ] 
+                    }];
                 }
                 
-                // Set initial active list if exists
-                if (this.state.structure.length > 0) {
-                    const firstList = this.findFirstList(this.state.structure);
-                    if (firstList) this.state.activeListId = firstList.id;
-                }
-
-                // Render loop
-                this.render();
-            }
-
-            // --- Core Logic ---
-
-            save() {
-                localStorage.setItem('bluebuy_data', JSON.stringify(this.state.structure));
-                this.render();
-            }
-
-            findNode(nodes, id) {
-                for (let node of nodes) {
-                    if (node.id === id) return node;
-                    if (node.children) {
-                        const found = this.findNode(node.children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            findFirstList(nodes) {
-                for (let node of nodes) {
-                    if (node.type === 'list') return node;
-                    if (node.children) {
-                        const found = this.findFirstList(node.children);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            // --- UI Actions ---
-
-            submitApiKey() {
-                const input = document.getElementById('api-key-input');
-                if (input.value.trim().length > 0) {
-                    this.apiKey = input.value.trim();
-                    document.getElementById('api-modal').classList.add('hidden');
-                } else {
-                    alert("請輸入 API Key");
-                }
-            }
-
-            setTab(tab) {
-                this.state.sidebarTab = tab;
+                // 設定預設清單
+                this.state.activeListId = this.state.lists[0]?.id || null;
+                
                 this.renderSidebar();
-            }
+                this.renderMain();
+                lucide.createIcons();
+            },
 
-            toggleSidebar(forceState) {
+            // --- 介面操作 ---
+            setApiKey() {
+                const input = document.getElementById('api-key-input').value.trim();
+                if (!input) return alert('請輸入 API Key');
+                this.state.apiKey = input;
+                document.getElementById('api-key-modal').classList.add('hidden');
+            },
+
+            toggleSidebar() {
                 const sidebar = document.getElementById('sidebar');
                 const overlay = document.getElementById('sidebar-overlay');
-                const isOpen = forceState !== undefined ? forceState : !this.state.isSidebarOpen;
-                this.state.isSidebarOpen = isOpen;
-
-                if (isOpen) {
+                if (sidebar.classList.contains('-translate-x-full')) {
                     sidebar.classList.remove('-translate-x-full');
                     overlay.classList.remove('hidden');
-                    setTimeout(() => overlay.classList.remove('opacity-0'), 10);
                 } else {
                     sidebar.classList.add('-translate-x-full');
-                    overlay.classList.add('opacity-0');
-                    setTimeout(() => overlay.classList.add('hidden'), 300);
+                    overlay.classList.add('hidden');
                 }
-            }
+            },
 
-            selectList(id) {
+            switchList(id) {
                 this.state.activeListId = id;
-                this.toggleSidebar(false);
-                this.render();
-            }
+                this.toggleSidebar();
+                this.renderMain();
+                this.renderSidebar(); // 更新選取狀態
+            },
 
-            toggleFolder(id) {
-                const node = this.findNode(this.state.structure, id);
-                if (node && node.type === 'folder') {
-                    node.isOpen = !node.isOpen;
-                    this.save();
+            createNewList() {
+                const name = prompt('請輸入新清單名稱：', '新清單');
+                if (name) {
+                    const newList = { id: Date.now().toString(), title: name, items: [] };
+                    this.state.lists.push(newList);
+                    this.saveData();
+                    this.switchList(newList.id);
                 }
-            }
+            },
 
-            toggleViewMode() {
-                this.state.viewMode = this.state.viewMode === 'list' ? 'grid' : 'list';
-                const icon = document.getElementById('view-mode-icon');
-                icon.setAttribute('data-lucide', this.state.viewMode === 'list' ? 'layout-grid' : 'align-justify');
-                this.render();
-            }
-
-            // --- Data Manipulation ---
-
-            handleAddItem(e) {
-                e.preventDefault();
+            // --- 項目 CRUD ---
+            addItem() {
                 const input = document.getElementById('new-item-input');
                 const name = input.value.trim();
-                if (!name || !this.state.activeListId) return;
-
-                const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                if (activeList) {
-                    activeList.items.unshift({
-                        id: generateId(),
+                if (!name) return;
+                
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                if (list) {
+                    list.items.unshift({
+                        id: Date.now().toString(),
                         name: name,
                         price: 0,
                         currency: 'TWD',
-                        note: '',
                         ingredients: '',
                         locations: [],
-                        checked: false,
-                        groupId: null,
-                        image: ''
+                        checked: false
                     });
-                    this.save();
+                    this.saveData();
+                    this.renderMain();
                     input.value = '';
                 }
-            }
+            },
 
             toggleCheck(itemId) {
-                const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                if (activeList) {
-                    const item = activeList.items.find(i => i.id === itemId);
-                    if (item) {
-                        item.checked = !item.checked;
-                        this.save();
-                    }
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                const item = list.items.find(i => i.id === itemId);
+                if (item) {
+                    item.checked = !item.checked;
+                    this.saveData();
+                    this.renderMain();
                 }
-            }
+            },
 
-            deleteItem(itemId) {
-                this.showConfirm('刪除項目', '確定要刪除這個商品嗎？', () => {
-                    const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                    if (activeList) {
-                        activeList.items = activeList.items.filter(i => i.id !== itemId);
-                        this.save();
-                        this.closeDialog();
-                    }
-                });
-            }
+            openEditor(itemId) {
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                const item = list.items.find(i => i.id === itemId);
+                if (!item) return;
 
-            addListOrFolder(type) {
-                const title = type === 'folder' ? '新資料夾' : '新清單';
-                this.showPrompt(`新增${title}`, `請輸入${title}名稱`, (val) => {
-                    if (!val) return;
-                    const newItem = {
-                        id: generateId(),
-                        type: type,
-                        title: val,
-                        ...(type === 'folder' ? { isOpen: true, children: [] } : { items: [], groups: [] })
-                    };
-                    this.state.structure.push(newItem);
-                    if(type === 'list') this.state.activeListId = newItem.id;
-                    this.save();
-                    this.closeDialog();
-                });
-            }
-            
-            deleteNode(id, e) {
-                e.stopPropagation();
-                this.showConfirm('刪除', '確定要刪除此項目嗎？', () => {
-                    const deleteRecursive = (nodes) => {
-                        return nodes.filter(n => {
-                            if (n.id === id) return false;
-                            if (n.children) n.children = deleteRecursive(n.children);
-                            return true;
-                        });
-                    };
-                    this.state.structure = deleteRecursive(this.state.structure);
-                    if(this.state.activeListId === id) this.state.activeListId = null;
-                    this.save();
-                    this.closeDialog();
-                });
-            }
+                this.state.editingItem = item;
+                this.state.tempLocations = [...(item.locations || [])];
 
-            // --- AI Features ---
+                // 填入資料
+                document.getElementById('edit-name').value = item.name;
+                document.getElementById('edit-price').value = item.price || '';
+                document.getElementById('edit-currency').value = item.currency || 'TWD';
+                document.getElementById('edit-ingredients').value = item.ingredients || '';
+                this.renderEditLocations();
 
-            async callGemini(prompt) {
-                document.getElementById('loading-overlay').classList.remove('hidden');
+                document.getElementById('editor-modal').classList.remove('translate-y-full');
+            },
+
+            closeEditor() {
+                document.getElementById('editor-modal').classList.add('translate-y-full');
+                this.state.editingItem = null;
+            },
+
+            saveEdit() {
+                if (!this.state.editingItem) return;
+                const item = this.state.editingItem;
+                item.name = document.getElementById('edit-name').value;
+                item.price = Number(document.getElementById('edit-price').value) || 0;
+                item.currency = document.getElementById('edit-currency').value;
+                item.ingredients = document.getElementById('edit-ingredients').value;
+                item.locations = [...this.state.tempLocations];
+
+                this.saveData();
+                this.renderMain();
+                this.closeEditor();
+            },
+
+            deleteItem() {
+                if (!this.state.editingItem || !confirm('確定要刪除嗎？')) return;
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                list.items = list.items.filter(i => i.id !== this.state.editingItem.id);
+                this.saveData();
+                this.renderMain();
+                this.closeEditor();
+            },
+
+            addLocation() {
+                const input = document.getElementById('new-loc-input');
+                const val = input.value.trim();
+                if (val) {
+                    this.state.tempLocations.push(val);
+                    input.value = '';
+                    this.renderEditLocations();
+                }
+            },
+
+            removeLocation(idx) {
+                this.state.tempLocations.splice(idx, 1);
+                this.renderEditLocations();
+            },
+
+            // --- 渲染函數 ---
+            renderSidebar() {
+                const container = document.getElementById('sidebar-content');
+                container.innerHTML = this.state.lists.map(list => `
+                    <button onclick="App.switchList('${list.id}')" class="w-full text-left p-3 rounded-xl flex items-center justify-between group transition-colors ${list.id === this.state.activeListId ? 'bg-blue-50 text-blue-500 font-bold' : 'text-slate-500 hover:bg-slate-50'}">
+                        <span class="truncate">${list.title}</span>
+                        <span class="text-xs bg-white px-2 py-1 rounded-full shadow-sm text-slate-400">${list.items.length}</span>
+                    </button>
+                `).join('');
+            },
+
+            renderMain() {
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                if (!list) return;
+
+                document.getElementById('current-list-title').innerText = list.title;
+                const container = document.getElementById('items-container');
+                
+                if (list.items.length === 0) {
+                    container.innerHTML = `<div class="text-center py-20 text-slate-300">清單空空的，加點東西吧！</div>`;
+                } else {
+                    container.innerHTML = list.items.map(item => `
+                        <div onclick="App.openEditor('${item.id}')" class="bg-white p-4 rounded-[24px] shadow-sm flex items-start gap-3 border border-slate-100 transition-all active:scale-[0.98]">
+                            <button onclick="event.stopPropagation(); App.toggleCheck('${item.id}')" class="mt-1 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.checked ? 'bg-blue-400 border-blue-400 text-white' : 'border-slate-200 text-transparent'}">
+                                <i data-lucide="check" width="14"></i>
+                            </button>
+                            <div class="flex-1 min-w-0 ${item.checked ? 'opacity-50 grayscale' : ''}">
+                                <div class="flex justify-between items-start">
+                                    <h3 class="font-bold text-slate-700 text-lg leading-tight ${item.checked ? 'line-through text-slate-400' : ''}">${item.name}</h3>
+                                    ${item.price > 0 ? `<span class="bg-blue-50 text-blue-500 text-xs font-bold px-2 py-1 rounded-lg">${item.currency === 'JPY' ? '¥' : '$'}${item.price}</span>` : ''}
+                                </div>
+                                ${(item.locations && item.locations.length > 0) ? `
+                                    <div class="flex flex-wrap gap-1 mt-2">
+                                        ${item.locations.map(loc => `<span class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-bold">${loc}</span>`).join('')}
+                                    </div>
+                                ` : ''}
+                                ${item.ingredients ? `<p class="text-xs text-slate-400 mt-1 truncate">${item.ingredients}</p>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                lucide.createIcons();
+            },
+
+            renderEditLocations() {
+                const container = document.getElementById('edit-locations');
+                container.innerHTML = this.state.tempLocations.map((loc, idx) => `
+                    <span class="bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                        ${loc} <button onclick="App.removeLocation(${idx})" class="hover:text-red-500"><i data-lucide="x" width="10"></i></button>
+                    </span>
+                `).join('');
+                lucide.createIcons();
+            },
+
+            saveData() {
+                localStorage.setItem('bluebuy_data', JSON.stringify(this.state.lists));
+            },
+
+            // --- AI 核心邏輯 (Gemini) ---
+            async callGemini(prompt, schema = null) {
+                if (!this.state.apiKey) {
+                    alert('請先輸入 API Key');
+                    document.getElementById('api-key-modal').classList.remove('hidden');
+                    return null;
+                }
+
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                };
+                if (schema) payload.generationConfig.responseSchema = schema;
+                
+                // 模擬搜尋工具開啟 (雖然這裡只用純模型，但為了符合 prompt 請求，使用模型內建知識)
                 try {
                     const response = await fetch(
-                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`,
+                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.state.apiKey}`,
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{ parts: [{ text: prompt }] }],
-                                generationConfig: { responseMimeType: "application/json" }
-                            })
+                            body: JSON.stringify(payload)
                         }
                     );
 
@@ -413,291 +501,185 @@
                     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!text) throw new Error("Empty response");
 
-                    // Clean Code block if present
+                    // 清理並解析 JSON
                     let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
                     const start = cleanText.indexOf('{');
                     const end = cleanText.lastIndexOf('}');
                     if (start !== -1 && end !== -1) cleanText = cleanText.substring(start, end + 1);
-
                     return JSON.parse(cleanText);
+
                 } catch (error) {
                     console.error(error);
-                    this.showAlert('AI Error', '無法連線到 Gemini API，請檢查 Key 是否正確。');
+                    alert("AI 呼叫失敗，請檢查 API Key 或網路連線。");
                     return null;
-                } finally {
-                    document.getElementById('loading-overlay').classList.add('hidden');
                 }
-            }
+            },
 
-            async smartFill(itemId) {
-                const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                const item = activeList.items.find(i => i.id === itemId);
-                if (!item) return;
+            // 1. 智慧填寫
+            async smartFill() {
+                const name = document.getElementById('edit-name').value;
+                if (!name) return;
+                
+                const btn = document.getElementById('btn-smart-fill');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<div class="loading-spin"><i data-lucide="loader-2"></i></div>`;
+                lucide.createIcons();
 
+                const currency = document.getElementById('edit-currency').value;
                 const prompt = `
-                    Item: "${item.name}".
-                    Role: Shopping Assistant (Taiwan Context).
-                    Return JSON: { 
-                        "price": number (TWD estimate), 
-                        "note": string (short tips in Traditional Chinese), 
-                        "ingredients": string (ingredients/nutrition), 
-                        "locations": ["Shop1", "Shop2"],
-                        "image_keyword": "English keyword" 
-                    }
+                    Product: "${name}". Target Currency: ${currency}.
+                    Task: 
+                    1. Estimate price (number only).
+                    2. List 3 common ingredients/features in Traditional Chinese.
+                    3. List 2 common store types in Taiwan/Japan (based on currency).
+                    Return JSON: { "price": number, "ingredients": string, "locations": string[] }
                 `;
 
                 const result = await this.callGemini(prompt);
                 if (result) {
-                    item.price = result.price || item.price;
-                    item.note = result.note || item.note;
-                    item.ingredients = result.ingredients || item.ingredients;
-                    item.locations = result.locations || item.locations;
-                    item.image = `https://loremflickr.com/300/300/${encodeURIComponent(result.image_keyword || 'product')}?random=${Date.now()}`;
-                    this.save();
+                    document.getElementById('edit-price').value = result.price;
+                    document.getElementById('edit-ingredients').value = result.ingredients;
+                    this.state.tempLocations = result.locations || [];
+                    this.renderEditLocations();
                 }
-            }
 
-            async askAdvisor() {
-                this.showPrompt('購物顧問', '你想買什麼？(例如：去野餐要買什麼？)', async (val) => {
-                    if (!val) return;
-                    this.closeDialog();
-                    const prompt = `Role: Shopping Advisor. Query: "${val}". Return JSON: { "recommendations": [{ "name": "Name", "reason": "Why", "price": 100, "shops": ["Shop"], "image_keyword": "keyword" }] }`;
-                    const result = await this.callGemini(prompt);
-                    
-                    if (result && result.recommendations) {
-                        const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                        if (!activeList) {
-                            this.showAlert('錯誤', '請先選擇一個清單');
-                            return;
-                        }
-                        
-                        result.recommendations.forEach(rec => {
-                            activeList.items.unshift({
-                                id: generateId(),
-                                name: rec.name,
-                                price: rec.price,
-                                currency: 'TWD',
-                                note: rec.reason,
-                                ingredients: '',
-                                locations: rec.shops,
-                                image: `https://loremflickr.com/300/300/${encodeURIComponent(rec.image_keyword)}?random=${Date.now()}`,
-                                checked: false,
-                                groupId: null
-                            });
-                        });
-                        this.save();
-                        this.showAlert('完成', `已為您加入 ${result.recommendations.length} 個建議項目！`);
-                    }
-                });
-            }
-
-            // --- Rendering ---
-
-            render() {
-                this.renderSidebar();
-                this.renderMainContent();
+                btn.innerHTML = originalHtml;
                 lucide.createIcons();
-            }
+            },
 
-            renderSidebar() {
-                const content = document.getElementById('sidebar-content');
-                const btnTabLists = document.getElementById('tab-lists');
-                const btnTabTools = document.getElementById('tab-tools');
+            // 2. AI 工具介面控制
+            openAITools() { document.getElementById('ai-tools-modal').classList.remove('hidden'); },
+            closeAITools() { document.getElementById('ai-tools-modal').classList.add('hidden'); },
+            
+            openTool(tool) {
+                this.state.currentTool = tool;
+                this.closeAITools();
+                
+                const modal = document.getElementById('query-modal');
+                const titleEl = document.getElementById('query-title');
+                const iconEl = document.getElementById('query-icon');
+                const inputEl = document.getElementById('query-input');
+                const resultEl = document.getElementById('query-result');
 
-                // Update Tab Styles
-                if (this.state.sidebarTab === 'lists') {
-                    btnTabLists.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all";
-                    btnTabTools.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all";
+                resultEl.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 gap-4 opacity-50"><i data-lucide="search" size="48"></i><p>請輸入關鍵字...</p></div>`;
+                inputEl.value = '';
+
+                if (tool === 'restaurant') {
+                    titleEl.innerText = "餐廳探查";
+                    iconEl.setAttribute('data-lucide', 'utensils');
+                    inputEl.placeholder = "輸入餐廳名稱...";
+                } else if (tool === 'hotel') {
+                    titleEl.innerText = "飯店分析";
+                    iconEl.setAttribute('data-lucide', 'bed');
+                    inputEl.placeholder = "輸入飯店名稱...";
                 } else {
-                    btnTabTools.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-white text-blue-500 shadow-sm transition-all";
-                    btnTabLists.className = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-all";
+                    titleEl.innerText = "購物顧問";
+                    iconEl.setAttribute('data-lucide', 'lightbulb');
+                    inputEl.placeholder = "輸入你的需求 (例如: 日本感冒藥)...";
                 }
+                
+                lucide.createIcons();
+                modal.classList.remove('translate-y-full');
+            },
 
-                if (this.state.sidebarTab === 'tools') {
-                    content.innerHTML = `
-                        <div class="space-y-4 animate-fade-in">
-                            <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">AI 智慧工具</div>
-                            <button onclick="app.askAdvisor()" class="w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-400 to-blue-500 text-white py-6 rounded-3xl shadow-lg active:scale-95 transition-transform">
-                                <div class="bg-white/20 p-3 rounded-full"><i data-lucide="lightbulb" class="w-6 h-6 text-yellow-200"></i></div>
-                                <span class="font-bold text-sm tracking-wide">購物顧問</span>
-                            </button>
-                        </div>
-                    `;
+            closeQuery() {
+                document.getElementById('query-modal').classList.add('translate-y-full');
+            },
+
+            // 3. 執行查詢
+            async runQuery() {
+                const query = document.getElementById('query-input').value;
+                if (!query) return;
+
+                const btn = document.getElementById('btn-run-query');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<div class="loading-spin"><i data-lucide="loader-2"></i></div>`;
+                lucide.createIcons();
+
+                const container = document.getElementById('query-result');
+                const tool = this.state.currentTool;
+                let prompt = '';
+
+                if (tool === 'restaurant') {
+                    prompt = `Analysis restaurant: "${query}". Return JSON: {"name": "Name", "rating": 4.5, "summary": "Pros/Cons summary in Traditional Chinese", "dishes": ["Dish 1", "Dish 2"]}`;
+                } else if (tool === 'hotel') {
+                    prompt = `Analyze hotel: "${query}". Return JSON: {"name": "Name", "rating": 4.5, "price_range": "e.g. 3000-5000 TWD", "summary": "Review summary in Traditional Chinese", "amenities": ["Wifi", "Pool"]}`;
                 } else {
-                    // Render Lists Tree
-                    let html = `<div class="flex justify-between items-center mb-2 px-2">
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">我的清單</span>
-                        <div class="flex gap-1">
-                            <button onclick="app.addListOrFolder('folder')" class="p-1 text-blue-400 hover:bg-blue-50 rounded-full"><i data-lucide="folder-plus" class="w-4 h-4"></i></button>
-                            <button onclick="app.addListOrFolder('list')" class="p-1 text-blue-400 hover:bg-blue-50 rounded-full"><i data-lucide="plus" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>`;
-                    
-                    const renderNodes = (nodes, level = 0) => {
-                        return nodes.map(node => {
-                            const paddingLeft = level * 12 + 12;
-                            if (node.type === 'folder') {
-                                return `
-                                    <div class="mb-1">
-                                        <div onclick="app.toggleFolder('${node.id}')" class="flex items-center justify-between py-2 pr-2 cursor-pointer text-slate-600 hover:bg-slate-50 rounded-r-full transition-colors group" style="padding-left: ${paddingLeft}px">
-                                            <div class="flex items-center gap-2 font-bold text-sm">
-                                                <i data-lucide="${node.isOpen ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-blue-300"></i>
-                                                <i data-lucide="folder" class="w-4 h-4 text-blue-400 fill-blue-50"></i>
-                                                <span class="truncate">${node.title}</span>
-                                            </div>
-                                            <button onclick="app.deleteNode('${node.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 text-rose-300 hover:text-rose-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                                        </div>
-                                        ${node.isOpen && node.children ? `<div class="border-l-2 border-dotted border-blue-100 ml-4">${renderNodes(node.children, level + 1)}</div>` : ''}
-                                    </div>
-                                `;
-                            } else {
-                                const isActive = this.state.activeListId === node.id;
-                                return `
-                                    <div onclick="app.selectList('${node.id}')" class="mb-1 py-2 pr-2 cursor-pointer rounded-r-full transition-all group flex justify-between items-center ${isActive ? 'bg-blue-100 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}" style="padding-left: ${paddingLeft}px">
-                                        <div class="flex items-center gap-2 text-sm font-bold">
-                                            <div class="w-2 h-2 rounded-full ${isActive ? 'bg-blue-500' : 'bg-slate-300'}"></div>
-                                            <span class="truncate">${node.title}</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                             <span class="text-[10px] px-2 rounded-full ${isActive ? 'bg-white text-blue-500' : 'bg-slate-200 text-slate-500'}">${node.items.length}</span>
-                                             <button onclick="app.deleteNode('${node.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 text-rose-300 hover:text-rose-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                                        </div>
-                                    </div>
-                                `;
-                            }
-                        }).join('');
-                    };
-                    content.innerHTML = html + renderNodes(this.state.structure);
-                }
-            }
-
-            renderMainContent() {
-                const activeList = this.findNode(this.state.structure, this.state.activeListId);
-                const titleEl = document.getElementById('header-title');
-                const countEl = document.getElementById('header-count');
-                const container = document.getElementById('list-container');
-
-                if (!activeList) {
-                    titleEl.innerText = "請選擇清單";
-                    countEl.classList.add('hidden');
-                    container.innerHTML = `<div class="flex flex-col items-center justify-center pt-20 text-slate-300 gap-4"><i data-lucide="shopping-bag" class="w-20 h-20 text-blue-100"></i><p>左側選擇清單開始購物</p></div>`;
-                    return;
+                    prompt = `Shopping Advisor: "${query}". Return JSON: {"recommendations": [{"name": "Item Name", "reason": "Why", "price": 100, "currency": "TWD"}]}`;
                 }
 
-                titleEl.innerText = activeList.title;
-                countEl.innerText = activeList.items.length;
-                countEl.classList.remove('hidden');
-
-                if (activeList.items.length === 0) {
-                    container.innerHTML = `<div class="text-center py-20 text-slate-300 font-bold">清單空空的，加點東西吧！✨</div>`;
-                    return;
-                }
-
-                container.className = this.state.viewMode === 'grid' ? "grid grid-cols-2 gap-3 pb-10" : "space-y-4 pb-10";
-
-                container.innerHTML = activeList.items.map(item => {
-                    // Logic to detect allergens tags
-                    const tags = [];
-                    const txt = (item.name + item.ingredients).toLowerCase();
-                    if(txt.match(/辣|spice/)) tags.push({t:'辛辣', c:'bg-red-50 text-red-500'});
-                    if(txt.match(/奶|milk/)) tags.push({t:'乳製品', c:'bg-blue-50 text-blue-500'});
-
-                    if (this.state.viewMode === 'grid') {
-                        return `
-                            <div class="bg-white p-3 rounded-[20px] shadow-sm border border-slate-100 flex flex-col h-full ${item.checked ? 'opacity-50 grayscale' : ''}">
-                                <div class="relative w-full aspect-square bg-slate-100 rounded-2xl mb-2 overflow-hidden">
-                                    ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-8 h-8"></i></div>`}
-                                    <button onclick="app.toggleCheck('${item.id}')" class="absolute top-2 right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md ${item.checked ? 'text-blue-500' : 'text-slate-300'}">
-                                        <i data-lucide="check" class="w-4 h-4 font-bold"></i>
-                                    </button>
+                const result = await this.callGemini(prompt);
+                
+                if (result) {
+                    let html = '';
+                    if (tool === 'restaurant') {
+                        html = `
+                            <div class="bg-white p-5 rounded-3xl shadow-sm border border-orange-100">
+                                <h2 class="text-xl font-bold text-slate-800 flex justify-between">${result.name} <span class="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">${result.rating}★</span></h2>
+                                <p class="text-sm text-slate-600 my-3 bg-slate-50 p-3 rounded-xl">${result.summary}</p>
+                                <h4 class="font-bold text-sm text-slate-500 mb-2">推薦菜色:</h4>
+                                <div class="flex flex-wrap gap-2 mb-4">
+                                    ${result.dishes.map(d => `<span class="bg-orange-50 text-orange-500 px-2 py-1 rounded-lg text-xs font-bold">${d}</span>`).join('')}
                                 </div>
-                                <h3 class="font-bold text-slate-700 text-sm mb-1 leading-tight ${item.checked ? 'line-through' : ''}">${item.name}</h3>
-                                ${item.price ? `<div class="text-xs font-bold text-blue-500">NT$${item.price}</div>` : ''}
-                                <div class="mt-auto pt-2 flex justify-end gap-1">
-                                    <button onclick="app.smartFill('${item.id}')" class="p-1.5 bg-purple-50 text-purple-400 rounded-full"><i data-lucide="wand-2" class="w-3 h-3"></i></button>
-                                    <button onclick="app.deleteItem('${item.id}')" class="p-1.5 bg-rose-50 text-rose-400 rounded-full"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                                <button onclick="App.addFromAI('${result.name}', '餐廳: ${result.name}', 0)" class="w-full py-3 bg-orange-400 text-white rounded-xl font-bold shadow-lg">加入清單</button>
+                            </div>
+                        `;
+                    } else if (tool === 'hotel') {
+                        html = `
+                             <div class="bg-white p-5 rounded-3xl shadow-sm border border-purple-100">
+                                <h2 class="text-xl font-bold text-slate-800 flex justify-between">${result.name} <span class="bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">${result.rating}★</span></h2>
+                                <div class="text-sm font-bold text-slate-500 mb-2">${result.price_range}</div>
+                                <p class="text-sm text-slate-600 my-3 bg-slate-50 p-3 rounded-xl">${result.summary}</p>
+                                <div class="flex flex-wrap gap-2 mb-4">
+                                    ${(result.amenities || []).map(a => `<span class="bg-purple-50 text-purple-500 px-2 py-1 rounded-lg text-xs font-bold">${a}</span>`).join('')}
                                 </div>
+                                <button onclick="App.addFromAI('${result.name}', '飯店: ${result.price_range}', 0)" class="w-full py-3 bg-purple-400 text-white rounded-xl font-bold shadow-lg">加入清單</button>
                             </div>
                         `;
                     } else {
-                        return `
-                        <div class="bg-white p-4 rounded-[24px] shadow-[0_4px_20px_-5px_rgba(224,231,255,0.6)] flex gap-4 items-start relative group transition-all ${item.checked ? 'opacity-50 bg-slate-50 shadow-none' : 'hover:-translate-y-1'}">
-                            <button onclick="app.toggleCheck('${item.id}')" class="flex-shrink-0 w-6 h-6 rounded-full border-2 mt-1 flex items-center justify-center transition-all ${item.checked ? 'bg-blue-400 border-blue-400 text-white' : 'border-slate-200 text-transparent hover:border-blue-300'}">
-                                <i data-lucide="check" class="w-3 h-3 stroke-[4]"></i>
-                            </button>
-                            <div class="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
-                                ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-5 h-5"></i></div>`}
-                            </div>
-                            <div class="flex-1 min-w-0 py-0.5">
-                                <div class="flex justify-between items-start">
-                                    <h3 class="font-bold text-base text-slate-700 leading-snug ${item.checked ? 'line-through text-slate-400' : ''}">${item.name}</h3>
-                                    ${item.price ? `<span class="bg-blue-50 text-blue-500 text-xs font-bold px-2 py-1 rounded-lg">NT$${item.price}</span>` : ''}
+                        html = `<div class="space-y-3">
+                            ${result.recommendations.map(item => `
+                                <div class="bg-white p-4 rounded-2xl shadow-sm border border-blue-50">
+                                    <div class="flex justify-between font-bold text-slate-700">
+                                        ${item.name} <span class="text-blue-500">${item.currency} ${item.price}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 my-2">${item.reason}</p>
+                                    <button onclick="App.addFromAI('${item.name}', '${item.reason}', ${item.price})" class="text-xs bg-blue-50 text-blue-500 px-3 py-1.5 rounded-full font-bold">+ 加入</button>
                                 </div>
-                                <div class="flex flex-wrap gap-1 mt-1">
-                                    ${tags.map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded ${t.c}">${t.t}</span>`).join('')}
-                                </div>
-                                ${item.note ? `<p class="text-xs text-slate-500 mt-1 bg-slate-50 inline-block px-2 py-0.5 rounded-lg max-w-full truncate">${item.note}</p>` : ''}
-                                
-                                <div class="flex gap-2 mt-2">
-                                     <button onclick="app.smartFill('${item.id}')" class="flex items-center gap-1 text-[10px] bg-purple-50 text-purple-500 px-2 py-1 rounded-full font-bold hover:bg-purple-100 transition-colors">
-                                        <i data-lucide="sparkles" class="w-3 h-3"></i> AI 補全
-                                     </button>
-                                     ${item.locations && item.locations.length ? `<span class="flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-500 px-2 py-1 rounded-full font-bold"><i data-lucide="map-pin" class="w-3 h-3"></i> ${item.locations[0]}</span>` : ''}
-                                </div>
-                            </div>
-                            <button onclick="app.deleteItem('${item.id}')" class="absolute bottom-3 right-3 text-slate-300 hover:text-rose-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </div>
-                        `;
+                            `).join('')}
+                        </div>`;
                     }
-                }).join('');
-            }
+                    container.innerHTML = html;
+                }
 
-            // --- Dialog Helpers ---
-            closeDialog() {
-                const d = document.getElementById('dialog-modal');
-                d.classList.add('hidden');
-                d.querySelector('#dialog-confirm').onclick = null;
-            }
+                btn.innerHTML = originalHtml;
+                lucide.createIcons();
+            },
 
-            showAlert(title, msg) {
-                const d = document.getElementById('dialog-modal');
-                d.querySelector('#dialog-title').innerText = title;
-                d.querySelector('#dialog-message').innerText = msg;
-                d.querySelector('#dialog-input-container').classList.add('hidden');
-                d.querySelector('#dialog-confirm').innerText = "OK";
-                d.querySelector('#dialog-confirm').onclick = () => this.closeDialog();
-                d.querySelector('#dialog-cancel').classList.add('hidden');
-                d.classList.remove('hidden');
+            addFromAI(name, note, price) {
+                const list = this.state.lists.find(l => l.id === this.state.activeListId);
+                if (list) {
+                    list.items.unshift({
+                        id: Date.now().toString(),
+                        name: name,
+                        price: price,
+                        currency: 'TWD',
+                        ingredients: note,
+                        locations: [],
+                        checked: false
+                    });
+                    this.saveData();
+                    this.renderMain();
+                    alert(`已加入「${name}」！`);
+                    this.closeQuery();
+                }
             }
+        };
 
-            showConfirm(title, msg, onConfirm) {
-                const d = document.getElementById('dialog-modal');
-                d.querySelector('#dialog-title').innerText = title;
-                d.querySelector('#dialog-message').innerText = msg;
-                d.querySelector('#dialog-input-container').classList.add('hidden');
-                d.querySelector('#dialog-confirm').innerText = "確認";
-                d.querySelector('#dialog-confirm').onclick = onConfirm;
-                d.querySelector('#dialog-cancel').classList.remove('hidden');
-                d.classList.remove('hidden');
-            }
-
-            showPrompt(title, msg, onConfirm) {
-                const d = document.getElementById('dialog-modal');
-                const inp = d.querySelector('#dialog-input');
-                d.querySelector('#dialog-title').innerText = title;
-                d.querySelector('#dialog-message').innerText = msg;
-                d.querySelector('#dialog-input-container').classList.remove('hidden');
-                inp.value = '';
-                d.querySelector('#dialog-confirm').innerText = "確認";
-                d.querySelector('#dialog-confirm').onclick = () => onConfirm(inp.value);
-                d.querySelector('#dialog-cancel').classList.remove('hidden');
-                d.classList.remove('hidden');
-                setTimeout(() => inp.focus(), 100);
-            }
-        }
-
-        // Initialize
-        const app = new ShoppingApp();
+        // 啟動應用
+        window.addEventListener('DOMContentLoaded', () => {
+            App.init();
+        });
 
     </script>
 </body>
