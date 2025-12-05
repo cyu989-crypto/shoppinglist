@@ -15,24 +15,21 @@
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #FFF9F5;
-            overflow: hidden; /* 防止整個頁面滾動 */
+            overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
-        
-        /* 針對 iOS Safe Area 的調整 */
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom, 20px);
-        }
-
-        /* 自定義滾動條 */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
-        
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        
         input[type="checkbox"] { accent-color: #3b82f6; width: 1.2rem; height: 1.2rem; }
+        
+        /* 隱藏 Datalist 的預設箭頭 (Chrome) */
+        input::-webkit-calendar-picker-indicator {
+            opacity: 0;
+        }
     </style>
 </head>
 <body class="text-slate-600 selection:bg-blue-100 h-[100dvh] w-full flex">
@@ -89,7 +86,9 @@
             newItemName: '',
             editingItem: null,
             pendingItemToAdd: null,
-            moveTarget: null 
+            moveTarget: null,
+            // 新增：歷史紀錄
+            history: JSON.parse(localStorage.getItem('bluebuy_item_history') || '[]')
         };
         let state = { ...initialState };
 
@@ -115,6 +114,16 @@
             if (text.match(/蝦|蟹|貝|魚|海鮮/)) features.push({ emoji: '🦐', color: 'text-indigo-500', bg: 'bg-indigo-50', label: '海鮮' });
             if (text.match(/花生|堅果/)) features.push({ emoji: '🥜', color: 'text-amber-600', bg: 'bg-amber-50', label: '堅果' });
             return features;
+        };
+
+        // --- History Manager ---
+        const addToHistory = (name) => {
+            if(!name) return;
+            const cleanName = name.trim();
+            // 移除重複並放到最前面，限制 50 筆
+            const newHistory = [cleanName, ...state.history.filter(h => h !== cleanName)].slice(0, 50);
+            state.history = newHistory;
+            localStorage.setItem('bluebuy_item_history', JSON.stringify(newHistory));
         };
 
         // --- API Key Modal ---
@@ -181,7 +190,7 @@
             } catch (error) { console.error("API Error", error); throw error; }
         };
 
-        // --- Render Functions (Mobile Optimized) ---
+        // --- Render Functions ---
         
         const renderSidebarNode = (node, level = 0) => {
             const isSelected = node.id === state.selectedListId;
@@ -277,7 +286,6 @@
             };
             const activeList = findNode(state.structure, state.selectedListId);
 
-            // 側邊欄修復：使用 h-[100dvh] + flex + pb-8 (for safe area)
             const sidebarHTML = `
             <aside class="fixed md:relative inset-y-0 left-0 z-50 w-[85vw] md:w-80 bg-white flex flex-col transition-transform duration-300 shadow-[4px_0_40px_-10px_rgba(219,234,254,0.6)] ${state.isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} h-[100dvh]">
                 <div class="p-6 md:p-8 pb-4 flex items-center gap-3 flex-shrink-0">
@@ -326,7 +334,12 @@
                 <div class="max-w-4xl mx-auto space-y-6 md:space-y-10 pb-32">
                     <div class="relative group mt-2">
                          <div class="absolute inset-y-0 left-6 flex items-center pointer-events-none">${iconHTML('plus', 26, 'text-blue-300')}</div>
-                         <input type="text" id="main-input" value="${state.newItemName}" placeholder="想要買什麼呢..." class="w-full pl-16 pr-28 py-6 bg-white rounded-[2.5rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg placeholder:text-slate-300 text-slate-600 font-bold" onkeydown="if(event.key === 'Enter') document.querySelector('[data-action=add-main-item]').click()">
+                         <input type="text" id="main-input" list="history-options" value="${state.newItemName}" placeholder="想要買什麼呢..." class="w-full pl-16 pr-28 py-6 bg-white rounded-[2.5rem] shadow-[0_15px_35px_-10px_rgba(147,197,253,0.25)] focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all text-lg placeholder:text-slate-300 text-slate-600 font-bold" onkeydown="if(event.key === 'Enter') document.querySelector('[data-action=add-main-item]').click()">
+                         
+                         <datalist id="history-options">
+                            ${state.history.map(h => `<option value="${h}">`).join('')}
+                         </datalist>
+
                          <button data-action="add-main-item" class="absolute right-2 top-2 bottom-2 px-6 bg-blue-400 hover:bg-blue-500 text-white rounded-[2rem] font-bold shadow-lg shadow-blue-200 transition-transform active:scale-95 text-base">加入</button>
                     </div>
                     <div class="${state.viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-4 md:space-y-5'}">${ungroupedItems.map(item => renderItemCard(item)).join('')}</div>
@@ -566,7 +579,18 @@
         };
         const updateDeep = (nodes, id, cb) => nodes.map(n => { if (n.id === id) return cb(n); if (n.children) return { ...n, children: updateDeep(n.children, id, cb) }; return n; });
         const updateItemInActiveList = (cb) => { if (state.selectedListId) saveData(updateDeep(state.structure, state.selectedListId, n => ({ ...n, items: cb(n.items) }))); };
-        const addItemToActiveList = (itemData) => { if (!state.selectedListId) return alert("請先選擇清單"); updateItemInActiveList(items => [{ id: generateId(), currency: 'TWD', checked: false, groupId: null, ...itemData }, ...items]); state.newItemName = ''; render(); };
+        
+        // --- Add Item + History Logic ---
+        const addItemToActiveList = (itemData) => { 
+            if (!state.selectedListId) return alert("請先選擇清單"); 
+            // 儲存歷史紀錄
+            addToHistory(itemData.name);
+            
+            updateItemInActiveList(items => [{ id: generateId(), currency: 'TWD', checked: false, groupId: null, ...itemData }, ...items]); 
+            state.newItemName = ''; 
+            render(); 
+        };
+        
         const updateItemInState = (item) => updateItemInActiveList(items => items.map(i => i.id === item.id ? item : i));
         
         const executeMove = (targetId) => {
@@ -596,6 +620,10 @@
         const confirmToolAddItem = (targetListId) => {
             const item = state.pendingItemToAdd;
             const newItems = item.isBatch ? item.items.map(i=>({id:generateId(), ...i, checked:false, groupId:null})) : [{id:generateId(), ...item, checked:false, groupId:null}];
+            
+            // 批量加入歷史紀錄 (如果是單個)
+            if(!item.isBatch) addToHistory(item.name);
+
             const addDeep = (nodes) => nodes.map(n => { if (n.id === targetListId) return { ...n, items: [...newItems, ...n.items] }; if (n.children) return { ...n, children: addDeep(n.children) }; return n; });
             saveData(addDeep(state.structure));
             state.pendingItemToAdd = null;
