@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智慧購物清單 Dark Mode</title>
+    <title>智慧購物清單 Mobile View</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -22,140 +22,151 @@
         }
     </script>
     <style>
+        /* Body background for desktop view context */
         body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        /* Hide scrollbar for internal containers */
         ::-webkit-scrollbar { width: 0px; background: transparent; }
         .hidden-list { display: none; }
         .custom-checkbox input:checked + div { background-color: #0ea5e9; border-color: #0ea5e9; }
         .custom-checkbox input:checked + div svg { display: block; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        /* Chat Bubbles Dark Mode Support */
+        
+        /* Chat Styles */
         .chat-bubble { max-width: 85%; border-radius: 1rem; padding: 0.75rem 1rem; line-height: 1.5; font-size: 0.95rem; }
         .chat-user { background-color: #dbeafe; color: #1e40af; border-bottom-right-radius: 0.25rem; margin-left: auto; }
-        .dark .chat-user { background-color: #1e3a8a; color: #dbeafe; } /* Dark mode user bubble */
+        .dark .chat-user { background-color: #1e3a8a; color: #dbeafe; }
         .chat-ai { background-color: #ffffff; color: #374151; border-bottom-left-radius: 0.25rem; margin-right: auto; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .dark .chat-ai { background-color: #1f2937; color: #e5e7eb; border: 1px solid #374151; } /* Dark mode AI bubble */
+        .dark .chat-ai { background-color: #1f2937; color: #e5e7eb; border: 1px solid #374151; }
         .prose strong { color: #0ea5e9; } .prose ul { list-style-type: disc; padding-left: 1.2em; }
-        .dark .prose { color: #e5e7eb; } /* Markdown text color in dark mode */
+        .dark .prose { color: #e5e7eb; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-100 h-screen flex flex-col overflow-hidden transition-colors duration-300">
+<!-- Outer body serves as the "Desk" background -->
+<body class="bg-gray-200 dark:bg-gray-950 h-screen flex items-center justify-center overflow-hidden transition-colors duration-300">
 
-    <!-- Header -->
-    <header class="bg-white dark:bg-gray-800 z-20 flex-shrink-0 border-b border-gray-100 dark:border-gray-700 transition-colors duration-300">
-        <div class="px-4 py-3 flex justify-between items-center">
-            <h1 class="text-lg font-bold text-sky-dark dark:text-sky-400 tracking-wide flex items-center"><i class="fa-solid fa-cart-shopping mr-2"></i>智慧購物</h1>
-            <div class="flex gap-2">
-                <button onclick="app.openAskModal()" class="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs px-3 py-1.5 rounded-full shadow-md transition-all flex items-center gap-1 animate-pulse-slow"><i class="fa-solid fa-comments"></i> AI 萬事通</button>
-                <!-- Theme Toggle Button -->
-                <button onclick="app.toggleTheme()" class="text-gray-400 hover:text-yellow-500 w-8 h-8 flex items-center justify-center transition-colors">
-                    <i class="fa-solid fa-sun dark:hidden"></i>
-                    <i class="fa-solid fa-moon hidden dark:block text-sky-300"></i>
-                </button>
-                <button onclick="app.openSettingsModal()" class="text-gray-400 hover:text-sky-600 w-8 h-8 flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
+    <!-- Phone Frame Container -->
+    <!-- On mobile: w-full h-full. On Desktop: fixed width/height with rounded corners and border -->
+    <div id="app-frame" class="w-full h-full sm:w-[390px] sm:h-[844px] sm:rounded-[3rem] sm:border-[8px] sm:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-100 flex flex-col overflow-hidden shadow-2xl relative transition-colors duration-300">
+
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 z-20 flex-shrink-0 border-b border-gray-100 dark:border-gray-700 transition-colors duration-300">
+            <div class="px-4 py-3 flex justify-between items-center">
+                <h1 class="text-lg font-bold text-sky-dark dark:text-sky-400 tracking-wide flex items-center"><i class="fa-solid fa-cart-shopping mr-2"></i>智慧購物</h1>
+                <div class="flex gap-2">
+                    <button onclick="app.openAskModal()" class="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs px-3 py-1.5 rounded-full shadow-md transition-all flex items-center gap-1 animate-pulse-slow"><i class="fa-solid fa-comments"></i> AI 萬事通</button>
+                    <!-- Theme Toggle Button -->
+                    <button onclick="app.toggleTheme()" class="text-gray-400 hover:text-yellow-500 w-8 h-8 flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-sun dark:hidden"></i>
+                        <i class="fa-solid fa-moon hidden dark:block text-sky-300"></i>
+                    </button>
+                    <button onclick="app.openSettingsModal()" class="text-gray-400 hover:text-sky-600 w-8 h-8 flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
+                </div>
+            </div>
+            <div class="px-4 pb-2 relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm"></i>
+                <input type="text" id="list-filter" placeholder="搜尋..." class="w-full bg-gray-100 dark:bg-gray-700 dark:text-white border-none rounded-xl pl-9 pr-8 py-2 text-sm focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 outline-none transition-all placeholder-gray-400 dark:placeholder-gray-500" oninput="app.setFilter(this.value)">
+                <button id="clear-search" onclick="app.clearFilter()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="px-4 pb-0 overflow-x-auto no-scrollbar flex gap-2 border-b border-gray-50 dark:border-gray-700 pt-1" id="category-tabs"></div>
+        </header>
+
+        <!-- Main List -->
+        <main id="list-container" class="flex-1 overflow-y-auto p-4 pb-24 bg-gray-50/50 dark:bg-gray-900">
+            <div id="root-list" class="space-y-3 max-w-2xl mx-auto"></div>
+        </main>
+
+        <!-- Floating Action Buttons (Changed from fixed to absolute to stay inside phone frame) -->
+        <div class="absolute bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
+            <div class="relative group" id="fab-folder">
+                <span class="absolute right-14 top-1/2 -translate-y-1/2 bg-gray-800 dark:bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">分類</span>
+                <button onclick="app.openAddModal('folder')" class="bg-white dark:bg-gray-800 text-sky-main dark:text-sky-400 w-12 h-12 rounded-full shadow-lg flex items-center justify-center border border-sky-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"><i class="fa-solid fa-folder-plus text-lg"></i></button>
+            </div>
+            <div class="relative group">
+                <span class="absolute right-14 top-1/2 -translate-y-1/2 bg-gray-800 dark:bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">商品</span>
+                <button onclick="app.openAddModal('item')" class="bg-sky-main text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-sky-dark transition-all transform hover:scale-105 active:scale-95"><i class="fa-solid fa-plus text-xl"></i></button>
             </div>
         </div>
-        <div class="px-4 pb-2 relative">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm"></i>
-            <input type="text" id="list-filter" placeholder="搜尋..." class="w-full bg-gray-100 dark:bg-gray-700 dark:text-white border-none rounded-xl pl-9 pr-8 py-2 text-sm focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 outline-none transition-all placeholder-gray-400 dark:placeholder-gray-500" oninput="app.setFilter(this.value)">
-            <button id="clear-search" onclick="app.clearFilter()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="px-4 pb-0 overflow-x-auto no-scrollbar flex gap-2 border-b border-gray-50 dark:border-gray-700 pt-1" id="category-tabs"></div>
-    </header>
 
-    <!-- Main List -->
-    <main id="list-container" class="flex-1 overflow-y-auto p-4 pb-24 bg-gray-50/50 dark:bg-gray-900">
-        <div id="root-list" class="space-y-3 max-w-2xl mx-auto"></div>
-    </main>
-
-    <!-- Floating Action Buttons -->
-    <div class="fixed bottom-6 right-6 z-20 flex flex-col gap-3 items-end">
-        <div class="relative group" id="fab-folder">
-            <span class="absolute right-14 top-1/2 -translate-y-1/2 bg-gray-800 dark:bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">分類</span>
-            <button onclick="app.openAddModal('folder')" class="bg-white dark:bg-gray-800 text-sky-main dark:text-sky-400 w-12 h-12 rounded-full shadow-lg flex items-center justify-center border border-sky-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"><i class="fa-solid fa-folder-plus text-lg"></i></button>
-        </div>
-        <div class="relative group">
-            <span class="absolute right-14 top-1/2 -translate-y-1/2 bg-gray-800 dark:bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">商品</span>
-            <button onclick="app.openAddModal('item')" class="bg-sky-main text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-sky-dark transition-all transform hover:scale-105 active:scale-95"><i class="fa-solid fa-plus text-xl"></i></button>
-        </div>
-    </div>
-
-    <!-- Edit/Add Modal -->
-    <div id="modal-overlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300 flex items-end sm:items-center justify-center">
-        <div id="modal-content" class="bg-white dark:bg-gray-800 w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6 transform translate-y-full sm:translate-y-0 transition-transform duration-300 shadow-2xl max-h-[90vh] overflow-y-auto relative border dark:border-gray-700">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="modal-title" class="text-lg font-bold text-sky-dark dark:text-sky-400">新增項目</h3>
-                <button onclick="app.closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <form id="item-form" onsubmit="event.preventDefault(); app.saveItem();">
-                <input type="hidden" id="edit-id"><input type="hidden" id="edit-type"><input type="hidden" id="edit-parent-id">
-                <div class="space-y-4">
-                    <div class="relative">
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">名稱 / 關鍵字</label>
+        <!-- Edit/Add Modal (absolute) -->
+        <div id="modal-overlay" class="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300 flex items-end sm:items-center justify-center">
+            <div id="modal-content" class="bg-white dark:bg-gray-800 w-full rounded-t-2xl sm:rounded-2xl p-6 transform translate-y-full sm:translate-y-0 transition-transform duration-300 shadow-2xl max-h-[90vh] overflow-y-auto relative border dark:border-gray-700 m-0 sm:m-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modal-title" class="text-lg font-bold text-sky-dark dark:text-sky-400">新增項目</h3>
+                    <button onclick="app.closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <form id="item-form" onsubmit="event.preventDefault(); app.saveItem();">
+                    <input type="hidden" id="edit-id"><input type="hidden" id="edit-type"><input type="hidden" id="edit-parent-id">
+                    <div class="space-y-4">
                         <div class="relative">
-                            <input type="text" id="input-title" placeholder="例如：辛拉麵、牛奶" class="w-full bg-sky-50 dark:bg-gray-700 dark:text-white border-none rounded-xl pl-4 pr-16 py-3 focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 outline-none placeholder-gray-400 dark:placeholder-gray-500" required oninput="app.handleInputPreviewLocal(this.value)">
-                            <button type="button" onclick="app.triggerGeminiAnalysis()" id="btn-ai-analyze" class="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200 bg-white dark:bg-gray-600 shadow-sm border border-indigo-100 dark:border-gray-500 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-transform hover:scale-105 z-10">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 分析
-                            </button>
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">名稱 / 關鍵字</label>
+                            <div class="relative">
+                                <input type="text" id="input-title" placeholder="例如：辛拉麵、牛奶" class="w-full bg-sky-50 dark:bg-gray-700 dark:text-white border-none rounded-xl pl-4 pr-16 py-3 focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 outline-none placeholder-gray-400 dark:placeholder-gray-500" required oninput="app.handleInputPreviewLocal(this.value)">
+                                <button type="button" onclick="app.triggerGeminiAnalysis()" id="btn-ai-analyze" class="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200 bg-white dark:bg-gray-600 shadow-sm border border-indigo-100 dark:border-gray-500 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-transform hover:scale-105 z-10">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 分析
+                                </button>
+                            </div>
+                            <div class="text-[10px] text-indigo-500 dark:text-indigo-300 mt-2 hidden flex items-center gap-1" id="ai-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> <span>正在搜尋成分表與購買地點...</span></div>
                         </div>
-                        <div class="text-[10px] text-indigo-500 dark:text-indigo-300 mt-2 hidden flex items-center gap-1" id="ai-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> <span>正在搜尋成分表與購買地點...</span></div>
+                        <div id="item-fields" class="space-y-4 hidden">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">價格</label><input type="number" id="input-price" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm"></div>
+                                <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">貨幣</label><select id="input-currency" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm"><option value="TWD">TWD</option><option value="JPY">JPY</option></select></div>
+                            </div>
+                            <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">備註 / 評論</label><textarea id="input-notes" rows="2" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm resize-none"></textarea></div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-carrot text-orange-400"></i> 食品成分表</label>
+                                <textarea id="input-ingredients" rows="2" class="w-full bg-orange-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm resize-none placeholder-gray-400 dark:placeholder-gray-500 text-gray-700" placeholder="AI 會自動填寫..."></textarea>
+                            </div>
+                            <div id="ai-preview" class="hidden bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                <div class="text-[10px] font-bold text-indigo-400 mb-1">AI 智慧預覽</div>
+                                <div id="preview-tags" class="flex flex-wrap gap-1 mb-2"></div>
+                                <div id="preview-details" class="text-xs text-gray-600 dark:text-gray-300 space-y-1"></div>
+                                <div id="preview-links" class="text-xs space-y-1 mt-2"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="item-fields" class="space-y-4 hidden">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">價格</label><input type="number" id="input-price" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm"></div>
-                            <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">貨幣</label><select id="input-currency" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm"><option value="TWD">TWD</option><option value="JPY">JPY</option></select></div>
-                        </div>
-                        <div><label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">備註 / 評論</label><textarea id="input-notes" rows="2" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm resize-none"></textarea></div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-carrot text-orange-400"></i> 食品成分表</label>
-                            <textarea id="input-ingredients" rows="2" class="w-full bg-orange-50 dark:bg-gray-700 dark:text-white border-none rounded-xl px-3 py-2 text-sm resize-none placeholder-gray-400 dark:placeholder-gray-500 text-gray-700" placeholder="AI 會自動填寫..."></textarea>
-                        </div>
-                        <div id="ai-preview" class="hidden bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                            <div class="text-[10px] font-bold text-indigo-400 mb-1">AI 智慧預覽</div>
-                            <div id="preview-tags" class="flex flex-wrap gap-1 mb-2"></div>
-                            <div id="preview-details" class="text-xs text-gray-600 dark:text-gray-300 space-y-1"></div>
-                            <div id="preview-links" class="text-xs space-y-1 mt-2"></div>
-                        </div>
+                    <div class="mt-6 flex gap-2">
+                        <button type="button" onclick="app.deleteCurrentItem()" id="btn-delete" class="hidden flex-1 py-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">刪除</button>
+                        <button type="button" onclick="app.openMoveSelect()" id="btn-move" class="hidden flex-1 py-3 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-bold hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-100 dark:border-orange-800 flex items-center justify-center gap-1 transition-colors"><i class="fa-solid fa-folder-tree"></i> 移動</button>
+                        <button type="submit" class="flex-[2] py-3 rounded-xl bg-sky-main text-white font-bold shadow-md hover:bg-sky-600 transition-colors">儲存</button>
                     </div>
-                </div>
-                <div class="mt-6 flex gap-2">
-                    <button type="button" onclick="app.deleteCurrentItem()" id="btn-delete" class="hidden flex-1 py-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">刪除</button>
-                    <button type="button" onclick="app.openMoveSelect()" id="btn-move" class="hidden flex-1 py-3 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-bold hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-100 dark:border-orange-800 flex items-center justify-center gap-1 transition-colors"><i class="fa-solid fa-folder-tree"></i> 移動</button>
-                    <button type="submit" class="flex-[2] py-3 rounded-xl bg-sky-main text-white font-bold shadow-md hover:bg-sky-600 transition-colors">儲存</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Move Modal -->
-    <div id="move-modal" class="fixed inset-0 bg-black/50 backdrop-blur-md z-[70] hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden border dark:border-gray-700">
-            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
-                <h3 class="font-bold text-gray-800 dark:text-gray-100"><i class="fa-solid fa-folder-tree mr-2 text-sky-500"></i>選擇移動位置</h3>
-                <button onclick="app.closeMoveModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </form>
             </div>
-            <div class="p-3 overflow-y-auto flex-1 bg-white dark:bg-gray-900" id="move-list-container"></div>
         </div>
-    </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-[80] hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl flex flex-col gap-4 border dark:border-gray-700">
-            <div class="flex justify-between items-center"><h3 class="text-lg font-bold text-gray-800 dark:text-white">API Key</h3><button onclick="app.closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button></div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">請輸入 Google API Key 以使用 AI 功能</p>
-            <input type="password" id="api-key-input" placeholder="Google Gemini API Key" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
-            <div class="flex gap-2"><button onclick="app.saveApiKey()" class="flex-1 bg-sky-500 text-white font-bold py-2 rounded-xl">儲存</button><button onclick="app.resetData(true)" class="px-4 py-2 rounded-xl text-red-400 border border-transparent hover:border-red-100 dark:hover:border-red-900 font-bold">重置</button></div>
+        <!-- Move Modal (absolute) -->
+        <div id="move-modal" class="absolute inset-0 bg-black/50 backdrop-blur-md z-[70] hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-800 w-full rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden border dark:border-gray-700 m-4">
+                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                    <h3 class="font-bold text-gray-800 dark:text-gray-100"><i class="fa-solid fa-folder-tree mr-2 text-sky-500"></i>選擇移動位置</h3>
+                    <button onclick="app.closeMoveModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <div class="p-3 overflow-y-auto flex-1 bg-white dark:bg-gray-900" id="move-list-container"></div>
+            </div>
         </div>
-    </div>
 
-    <!-- Chat Modal -->
-    <div id="ask-modal" class="fixed inset-0 bg-white dark:bg-gray-900 z-[60] hidden transition-transform duration-300 translate-y-full flex flex-col">
-        <div class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 flex justify-between items-center shadow-sm z-10">
-            <div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white"><i class="fa-solid fa-robot"></i></div><div><h3 class="font-bold text-gray-800 dark:text-white">AI 萬事通</h3></div></div>
-            <div class="flex gap-2"><button id="btn-clear-chat" onclick="app.clearChat()" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 rounded-full"><i class="fa-solid fa-trash-can"></i></button><button onclick="app.closeAskModal()" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><i class="fa-solid fa-chevron-down"></i></button></div>
+        <!-- Settings Modal (absolute) -->
+        <div id="settings-modal" class="absolute inset-0 bg-black/30 backdrop-blur-sm z-[80] hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-800 w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 border dark:border-gray-700 m-4">
+                <div class="flex justify-between items-center"><h3 class="text-lg font-bold text-gray-800 dark:text-white">API Key</h3><button onclick="app.closeSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">請輸入 Google API Key 以使用 AI 功能</p>
+                <input type="password" id="api-key-input" placeholder="Google Gemini API Key" class="w-full bg-gray-50 dark:bg-gray-700 dark:text-white border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
+                <div class="flex gap-2"><button onclick="app.saveApiKey()" class="flex-1 bg-sky-500 text-white font-bold py-2 rounded-xl">儲存</button><button onclick="app.resetData(true)" class="px-4 py-2 rounded-xl text-red-400 border border-transparent hover:border-red-100 dark:hover:border-red-900 font-bold">重置</button></div>
+            </div>
         </div>
-        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900"><div id="chat-intro" class="chat-bubble chat-ai"><p>你好！我是你的 AI 購物助手 ✨</p></div></div>
-        <div class="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 items-end"><textarea id="ask-input" rows="1" class="flex-1 bg-gray-100 dark:bg-gray-700 dark:text-white border-none rounded-2xl px-4 py-3 resize-none outline-none placeholder-gray-400 dark:placeholder-gray-500" placeholder="問問我..."></textarea><button onclick="app.sendAsk()" id="ask-send-btn" class="w-11 h-11 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-md"><i class="fa-solid fa-paper-plane"></i></button></div>
-    </div>
+
+        <!-- Chat Modal (absolute) -->
+        <div id="ask-modal" class="absolute inset-0 bg-white dark:bg-gray-900 z-[60] hidden transition-transform duration-300 translate-y-full flex flex-col">
+            <div class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 flex justify-between items-center shadow-sm z-10">
+                <div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white"><i class="fa-solid fa-robot"></i></div><div><h3 class="font-bold text-gray-800 dark:text-white">AI 萬事通</h3></div></div>
+                <div class="flex gap-2"><button id="btn-clear-chat" onclick="app.clearChat()" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 rounded-full"><i class="fa-solid fa-trash-can"></i></button><button onclick="app.closeAskModal()" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><i class="fa-solid fa-chevron-down"></i></button></div>
+            </div>
+            <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900"><div id="chat-intro" class="chat-bubble chat-ai"><p>你好！我是你的 AI 購物助手 ✨</p></div></div>
+            <div class="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 items-end"><textarea id="ask-input" rows="1" class="flex-1 bg-gray-100 dark:bg-gray-700 dark:text-white border-none rounded-2xl px-4 py-3 resize-none outline-none placeholder-gray-400 dark:placeholder-gray-500" placeholder="問問我..."></textarea><button onclick="app.sendAsk()" id="ask-send-btn" class="w-11 h-11 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-md"><i class="fa-solid fa-paper-plane"></i></button></div>
+        </div>
+
+    </div><!-- End of Phone Frame -->
 
     <script>
         const envApiKey = ""; 
